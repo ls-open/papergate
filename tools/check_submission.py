@@ -588,6 +588,70 @@ def check_submission_requirements_archive(ctx, ) -> CheckResult:
     return cr
 
 
+# `generation_log.md` 的四个小节：标准里的小节名 → 认得的同义写法（任一命中即可）
+GENERATION_LOG_SECTIONS = {
+    "适配项": ("适配项",),
+    "4 点渲染抽查结论": ("渲染抽查", "渲染检查", "渲染核对"),
+    "自检警告逐条结论": ("自检警告", "警告逐条", "警告结论"),
+    "产出清单 + 投稿系统操作项": ("产出清单", "上传清单", "操作项"),
+}
+
+
+def check_generation_log(ctx, ) -> CheckResult:
+    """投稿留痕：投稿包下是否有 `generation_log.md`，四节是否齐全。
+
+    standards/submission/submission.md 把它定为投稿包**必写**，且是「该看的看过、
+    该判的判过」的唯一验收痕迹。四节里有两节记的正是确定性检查判不出来的东西
+    （渲染抽查、自检警告逐条结论）——这份文件在，那些判断才有落点。
+
+    判定分两档，理由是两者确定性不同：
+
+    - **文件不在 → error**。投稿期、投稿包已就绪，却没有任何验收痕迹，
+      投稿门禁等于空转。
+    - **文件在、缺某节 → warning**。小节标题是自由措辞，同义写法很多，
+      按字面硬卡会误伤，提示补齐比阻断更合适。
+
+    写的内容对不对判不了，交人工与审稿。
+    """
+    cr = CheckResult("投稿留痕 generation_log.md（四节齐全）")
+    if not is_submission_period(ctx):
+        cr.add(True, detail={"note": "非投稿期，跳过投稿留痕检查"})
+        return cr
+    if not ctx.export_dir.exists():
+        cr.add(True, detail={"note": "write/export/ 不存在，跳过投稿留痕检查"})
+        return cr
+
+    manuscripts = list(ctx.export_dir.glob("**/submission_manuscript.md"))
+    if not manuscripts:
+        cr.add(True, detail={"note": "无 submission_manuscript.md，跳过投稿留痕检查"})
+        return cr
+
+    for ms in manuscripts:
+        pkg_dir = ms.parent
+        rel_pkg = str(pkg_dir.relative_to(ctx.root_dir))
+        log_file = pkg_dir / "generation_log.md"
+        if not log_file.exists():
+            cr.add(False, {"package_dir": rel_pkg, "generation_log": False},
+                   error=(f"{rel_pkg}/ 缺少 `generation_log.md`。投稿包里它是唯一能证明"
+                          "「该看的看过、该判的判过」的痕迹，不能省"),
+                   action={"type": "confirm", "target": f"{rel_pkg}/generation_log.md",
+                           "instruction": "按 standards/submission/submission.md §五 建四节："
+                                          "适配项 / 4 点渲染抽查结论 / 自检警告逐条结论 / "
+                                          "产出清单与投稿系统操作项"})
+            continue
+
+        headings = [ln.lstrip("#").strip() for ln in
+                    log_file.read_text(encoding="utf-8", errors="ignore").splitlines()
+                    if ln.lstrip().startswith("#")]
+        missing = [name for name, alts in GENERATION_LOG_SECTIONS.items()
+                   if not any(alt in h for h in headings for alt in alts)]
+        cr.add(not missing, {"package_dir": rel_pkg, "missing_sections": missing},
+               warning=(f"{rel_pkg}/generation_log.md 缺小节：{'、'.join(missing)}"
+                        "（若用了别的标题写法可忽略）") if missing else None,
+               severity="minor")
+    return cr
+
+
 def check_block_separation(ctx, ) -> CheckResult:
     """块级标记与正文的空行分隔（写作期 warning / 投稿期 error 硬门禁）。
 

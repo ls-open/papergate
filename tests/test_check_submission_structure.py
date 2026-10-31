@@ -163,6 +163,50 @@ class TestCslPath(unittest.TestCase):
             self.assertEqual(cr.errors, [])
             self.assertEqual(cr.warnings, [])
 
+    def _pkg(self, root: Path) -> tuple[ProjectContext, Path]:
+        ctx = _ctx(root)
+        ctx.export_dir.mkdir(parents=True, exist_ok=True)
+        journal_dir = ctx.export_dir / "demo_journal"
+        journal_dir.mkdir(parents=True, exist_ok=True)
+        (journal_dir / "submission_manuscript.md").write_text(
+            "---\ntitle: T\n---\n# M\n", encoding="utf-8")
+        return ctx, journal_dir
+
+    def test_generation_log_missing_errors(self):
+        """投稿包就绪但无 generation_log.md → error（唯一验收痕迹不能省）"""
+        with tempfile.TemporaryDirectory() as d:
+            ctx, _ = self._pkg(Path(d))
+            cr = check_submission.check_generation_log(ctx)
+            self.assertTrue(cr.errors, "缺 generation_log.md 必须报错，而不是提示")
+
+    def test_generation_log_with_four_sections_passes(self):
+        with tempfile.TemporaryDirectory() as d:
+            ctx, journal_dir = self._pkg(Path(d))
+            (journal_dir / "generation_log.md").write_text(
+                "# 留痕\n\n## 适配项\n…\n## 4 点渲染抽查结论\n…\n"
+                "## 自检警告逐条结论\n…\n## 产出清单与投稿系统操作项\n…\n",
+                encoding="utf-8")
+            cr = check_submission.check_generation_log(ctx)
+            self.assertEqual(cr.errors, [])
+            self.assertEqual(cr.warnings, [])
+
+    def test_generation_log_missing_section_warns_only(self):
+        """缺小节只提示不阻断——小节标题是自由措辞，硬卡会误伤"""
+        with tempfile.TemporaryDirectory() as d:
+            ctx, journal_dir = self._pkg(Path(d))
+            (journal_dir / "generation_log.md").write_text(
+                "## 适配项\n…\n", encoding="utf-8")
+            cr = check_submission.check_generation_log(ctx)
+            self.assertEqual(cr.errors, [], "缺小节不应阻断")
+            self.assertTrue(any("缺小节" in w["message"] for w in cr.warning_items))
+
+    def test_generation_log_skipped_outside_submission(self):
+        with tempfile.TemporaryDirectory() as d:
+            ctx = _ctx(Path(d))
+            cr = check_submission.check_generation_log(ctx)
+            self.assertEqual(cr.errors, [])
+            self.assertEqual(cr.warnings, [])
+
 if __name__ == "__main__":
     unittest.main()
 

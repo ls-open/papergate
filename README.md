@@ -126,11 +126,11 @@ PaperGate 面向学术长任务工程治理，不做一刀切的过度包办：
 papergate/
 ├── papergate.py          ← 统一入口（new / status / check / export）
 ├── standards/            ← 契约：system / writing / submission
-├── tools/                ← 检查内核、68 项检查、状态机、技能加载器
+├── tools/                ← 检查内核、69 项检查、状态机、技能加载器
 ├── template/             ← 新项目骨架（papergate.py new 复制）
 ├── skills/               ← 可插拔技能（export / literature-manager / 任意技能）
 ├── examples/demo-paper/  ← 可直接运行的示例项目
-├── tests/                ← 930 个测试 + 2 个仿真项目
+├── tests/                ← 934 个测试 + 2 个仿真项目
 └── framework/            ← 设计文档（new-project）
 ```
 
@@ -181,8 +181,8 @@ skills/<name>/
 
 | 指标 | 数值 |
 | :--- | :--- |
-| 核心检查项 | 68 项（`papergate.py check --list` 实时生成） |
-| 测试 | 930 个。干净 clone 下 924 通过 / 0 失败 / 6 跳过——跳过的是「两份 AGENTS.md 硬条目一致」哨兵，它只在框架仓没有上级工作区 `AGENTS.md` 时跳过；按第一节 `init` 出工作区后这 6 条会跑起来。要真 Zotero 的 live 测试需 `PAPERGATE_LIVE=1` 才收集 |
+| 核心检查项 | 69 项（`papergate.py check --list` 实时生成） |
+| 测试 | 934 个。干净 clone 下 928 通过 / 0 失败 / 6 跳过——跳过的是「两份 AGENTS.md 硬条目一致」哨兵，它只在框架仓没有上级工作区 `AGENTS.md` 时跳过；按第一节 `init` 出工作区后这 6 条会跑起来。要真 Zotero 的 live 测试需 `PAPERGATE_LIVE=1` 才收集 |
 | 框架自省 | 11/11 通过，0 error，1 条警告（文献技能未配 `.env`，属正常） |
 | 示例项目 | `examples/demo-paper` 基础 + 写作期检查 0 error |
 | CI | Python 3.11 / 3.13 矩阵 + ruff + mypy + 覆盖率门槛 |
@@ -227,7 +227,7 @@ python3 -m pytest -q
 
 ## 九、参与与共建
 
-PaperGate 的工程流已在实际论文写作与投稿场景中跑通验证，核心拥有 900+ 单元测试与 68 项自动化检查覆盖。目前主要的探索空间在于跨学科场景的扩展（不同学科对图表规范、数据流追溯与排版门禁的要求各有差异）。
+PaperGate 的工程流已在实际论文写作与投稿场景中跑通验证，核心拥有 900+ 单元测试与 69 项自动化检查覆盖。目前主要的探索空间在于跨学科场景的扩展（不同学科对图表规范、数据流追溯与排版门禁的要求各有差异）。
 
 如果在使用中发现规则误报、想为特定学科补充标准契约（`standards/`），或贡献新的自动化检查项与测试用例，欢迎提交 Issue 或 PR。
 

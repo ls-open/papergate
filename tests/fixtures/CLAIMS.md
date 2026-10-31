@@ -27,5 +27,6 @@
 | papergate/ARCHITECTURE.md | §3.4 投稿分文件架构 | `:::` 等 L2 导出语法只允许在投稿副本（源稿出现即拦截） | paper_forbidden_syntax | — |
 | standards/submission/submission.md | §二 投稿包文件组织与易错点 | 投稿包导出文件过期（源稿更新后未重导）即提示 | export_freshness | — |
 | standards/submission/submission.md | §五 投稿包生成步骤 | 投稿稿件挂载 CSL 的路径必须真实存在 | csl_path | — |
+| standards/submission/submission.md | §五 投稿包生成步骤 | 留痕文件 generation_log.md 存在，且四节齐全 | generation_log | submission_error |
 | standards/writing/citation-standards.md | §一 文献准入分级 | 笔记与 bib 双向闭合（有笔记无 bib 条目等缺口提示） | notes_bib_closure | — |
 | standards/writing/data-flow.md | §三 表的产出约定 | 正文表格引用必须闭环（引用↔定义，投稿期 error） | table_refs | submission_error |

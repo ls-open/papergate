@@ -74,7 +74,7 @@ main                                      ← 唯一分支：期刊无关的规�
 | **独立表格文件（Tables）** | `tables.md` → `Tables.docx`（可选） | 强制表格分立上传的期刊（如 Emerald APJML）：正文表格抽至 `tables.md`，正文保留 `[Insert Table N about here]` |
 | **独立图片包** | `figures/`（可选） | 期刊要求图与正文分开上传时使用 |
 | **期刊要求与模板规范** | `submission_requirements.md`、`[目标]_requirements.txt` | 官方投稿规范存档 + 模板生成规范（导出时据此实时生成临时 Word 模板，二进制模板中间件不进版本库） |
-| **留痕文件** | `generation_log.md` | **四节必写**（见 §五）：它是"该看的看过、该判的判过"的唯一痕迹 |
+| **留痕文件** | `generation_log.md` | **四节必写**（见 §五）：它是"该看的看过、该判的判过"的唯一痕迹。`check` 验存在性与四节齐全，缺文件报 error、缺小节给提示 |
 
 ---
 
