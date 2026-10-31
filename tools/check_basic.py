@@ -1,4 +1,4 @@
-# PaperGate — basic 阶段检查（17 项）
+# PaperGate — basic 阶段检查（16 项）
 import configparser
 import difflib
 import os

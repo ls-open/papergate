@@ -188,6 +188,9 @@ CHECK_REGISTRY = {
     "notes_bib_closure": (check_notes_bib_closure, ("writing", "citation")),
     "note_structure": (check_note_structure, ("writing", "citation")),
     "note_gist": (check_note_gist, ("writing", "citation")),
+    "note_heading_gaps": (check_note_heading_gaps, ("writing", "citation")),
+    "note_table_gaps": (check_note_table_gaps, ("writing", "citation")),
+    "note_word_preservation": (check_note_word_preservation, ("writing", "citation")),
     "evidence_level": (check_evidence_level, ("writing", "citation")),
     "citation_overuse": (check_citation_overuse, ("writing", "citation")),
     "citation_repetition": (check_citation_repetition, ("writing", "citation")),
@@ -209,7 +212,7 @@ CHECK_REGISTRY = {
 }
 
 # 框架自检模式（--framework / 自动识别）运行的检查集合：
-# 8 项框架专属（is_framework_repo 守卫：技能/标准/模板/系统一致性）+ 3 项中性（密钥跟踪/提交格式/依赖硬性）。
+# 7 项框架专属（is_framework_repo 守卫：技能/标准/模板/系统一致性）+ 4 项中性（密钥跟踪/提交格式/依赖硬性）。
 FRAMEWORK_CHECK_KEYS = (
     "skill_completeness", "skill_md_references", "standards_completeness",
     "standards_code_refs", "system_md_consistency", "template_completeness",
