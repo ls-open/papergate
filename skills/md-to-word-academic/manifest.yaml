@@ -4,6 +4,6 @@ description: "学术 Markdown → 期刊/学位论文 Word 导出（md-to-word �
 commands:
   - name: export
     entry: export_cli.py
-    help: "导出 Word：papergate.py export <paper.md> -t <目标.docx>"
+    help: "导出 Word：papergate.py export <paper.md> -o <目标.docx>"
 writes:
   - write/export/

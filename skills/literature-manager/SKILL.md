@@ -11,7 +11,7 @@ Zotero 线上文献库为单一事实源（SSOT），`.bib` 为 Git 跟踪的编
 
 > **统一入口**：`python3 ../papergate/papergate.py lit` (或 `literature`)
 > **前置依赖**：Zotero 读写需要凭据。推荐放到用户级配置（不跟技能目录走）：
-> `mkdir -p ~/.config/papergate && cp .env.example ~/.config/papergate/literature.env`，填入
+> `mkdir -p ~/.config/papergate && cp .env.example ~/.config/papergate/literature-manager.env`，填入
 > `ZOTERO_API_KEY` / `ZOTERO_USER_ID`。也支持 `PAPERGATE_LITERATURE_ENV` 指定路径，或旧的技能目录 `.env`。
 > 没配时请求会被 Zotero 拒绝（HTTP 403），而报错本身不会指出是缺凭证。
 

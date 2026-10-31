@@ -133,7 +133,7 @@ python3 papergate.py new my-paper        # 从模板建项目（git init + 首�
 python3 papergate.py status              # 阶段 / git / 文献 / 论文 / 上次自检
 python3 papergate.py check --stage writing
 python3 papergate.py check --stage submission
-python3 papergate.py export paper.md -t journal.docx
+python3 papergate.py export paper.md -o journal.docx
 ```
 
 ---
@@ -157,7 +157,7 @@ skills/<name>/
 └── ...               # 技能自己的代码与文档
 ```
 
-- **开箱自带技能**：内置 `literature-manager`（Zotero 同步、笔记解析、BibTeX 操作）与 `md-to-word-academic`（学术 Markdown 到 Word 出版级导出）。文献密钥等凭据属于**用户级配置**，推荐保存在 `~/.config/papergate/literature.env`（或通过环境变量 `PAPERGATE_LITERATURE_ENV` 指定），与仓库代码解耦；
+- **开箱自带技能**：内置 `literature-manager`（Zotero 同步、笔记解析、BibTeX 操作）与 `md-to-word-academic`（学术 Markdown 到 Word 出版级导出）。文献密钥等凭据属于**用户级配置**，推荐保存在 `~/.config/papergate/literature-manager.env`（或通过环境变量 `PAPERGATE_LITERATURE_ENV` 指定），与仓库代码解耦；
 - **第三方检索扩展**：爬虫类检索易受外部接口变动影响，不内置在核心仓库中；如需使用，可按 `skills/` 规范编写独立技能接入；
 - **审查解耦为技能**：不同学科与团队的评审标准差异极大，硬编码进核心会导致流程僵化。审查由独立技能读取 `standards/` 产出报告；框架核心只负责阶段状态机与通用门禁。未配置审查技能时，`check --stage review` 会明确提示「审查由技能提供」，不产生假通过；
 - **即插即用**：技能目录完全独立，移除某个技能目录，对应的能力与子命令同步移除，框架核心门禁与状态机不受任何影响；任何包含 `SKILL.md` 的目录均可被自动发现；项目本地 `skills/` 可同名覆盖框架技能；

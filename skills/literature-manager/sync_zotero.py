@@ -24,14 +24,19 @@ def _load_literature_env():
     """加载 Zotero 凭据：显式路径 > 用户配置 > 技能目录 .env（向后兼容）。
 
     凭据是**用户级**的，不该跟着技能目录被复制/提交。推荐放在
-    `~/.config/papergate/literature.env`；技能目录下的 `.env` 仍可用。
+    `~/.config/papergate/literature-manager.env`；技能目录下的 `.env` 仍可用。
+
+    文件名统一为 `<技能名>.env`——`check` 的「技能 env 配置完整性」按同一条
+    规则推导路径，两边名字不一致会出现「照文档配好了，检查说没配」。
+    早期文档写的是 `literature.env`，作为兼容候选保留在最后。
     """
     candidates = []
     explicit = os.environ.get("PAPERGATE_LITERATURE_ENV", "").strip()
     if explicit:
         candidates.append(Path(explicit).expanduser())
     config_home = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config"))
-    candidates.append(config_home / "papergate" / "literature.env")
+    candidates.append(config_home / "papergate" / "literature-manager.env")
+    candidates.append(config_home / "papergate" / "literature.env")  # 弃用，兼容旧文档
     candidates.append(_SCRIPT_DIR / ".env")
     for path in candidates:
         if path.is_file():

@@ -1310,7 +1310,7 @@ def main():
         print("  papergate.py status                       # 查看当前项目状态")
         print("  papergate.py check --all                  # 运行全量自检")
         print("  papergate.py record --all                 # 留档当前分析结果与环境档案")
-        print("  papergate.py export paper.md -t jms.docx  # 导出 Word")
+        print("  papergate.py export paper.md -o jms.docx  # 导出 Word")
         sys.exit(0)
 
     cmd = sys.argv[1]
