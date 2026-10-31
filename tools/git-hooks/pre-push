@@ -1,0 +1,24 @@
+#!/bin/bash
+# PaperGate pre-push hook — push 前跑测试，不阻塞 commit
+# 测试失败 → push 拒绝
+# 跳过：git push --no-verify
+
+set -e
+
+if [ ! -d papergate/tests ]; then
+  echo "[pre-push] 无测试套件（papergate/tests/ 缺失），跳过"
+  exit 0
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[pre-push] 未找到 python3，无法跑测试" >&2
+  exit 1
+fi
+
+echo "[pre-push] 跑测试 (pytest)…"
+python3 -m pytest papergate/tests/ -q || {
+  echo "[pre-push] 测试失败，push 中止" >&2
+  exit 1
+}
+
+echo "[pre-push] 通过 ✅"

@@ -1,0 +1,68 @@
+# === 入库边界（data-flow §六）===
+# git 只放两类：① 不可再生的原始事实（data/，不在此排除）；
+# ② 论文对外声称的物证（write/ 稿件、write/export/ 投稿包、被正文引用的图、
+# 被 table_map.json 声明的表数据源、results/manifest.json）。
+# 其余由代码生成的中间量一律在此排除——能重跑出来，进 git 只会淹没真正的变更。
+# 偏离本清单时请在此写明理由（artifact_tracking 检查按下表判跟踪状态）。
+
+# Reference PDFs（大文件，可由 Zotero 重新获取，非论文物证）
+# 排除内容但保留 .gitkeep，否则目录连同空壳一起进不了 git，
+# `papergate new` 出来的项目会少一个 references/pdfs/
+references/pdfs/*
+!references/pdfs/.gitkeep
+
+# Diagnostics / models — 过程日志与训练产物：每次运行覆盖 / 二进制，可重新生成
+results/diagnostics/
+results/models/
+
+# 导出产物的 PDF — `export --pdf` 生成的抽查件，docx 才是交付物
+write/export/**/*.pdf
+
+# Processed — 清洗缓存，管线可重新生成
+processed/*
+!processed/.gitkeep
+
+# Temp — 中间临时产出，AI 会话产生的分析文件，每次可重新生成
+tmp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv
+venv/
+env/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Office 临时文件（Word/Excel 锁定文件）
+~$*
+
+# IDE
+.idea/
+.vscode/
+
+# Editor temp files
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/

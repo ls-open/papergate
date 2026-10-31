@@ -1,0 +1,36 @@
+[papergate]
+path = ../papergate
+
+[project]
+name = __PROJECT_NAME__
+has_data = true
+has_scripts = true
+primary_language = en
+write_dir = write
+scripts_dir = scripts
+results_dir = results
+notes_dir = references/notes
+pdfs_dir = references/pdfs
+bib_file = write/references.bib
+
+# 文体档位：驱动引用基准与字数默认档（阈值见 papergate/tools/lib_config.py DOC_KIND_PROFILES）
+#   journal       期刊论文（IMRaD），默认
+#   dissertation  学位论文（文献量按培养单位规定门禁）
+# 学位论文项目必须显式写 kind = dissertation，否则按期刊档判定
+[document]
+kind = journal
+
+# 项目级 Zotero 集合配置（多项目隔离必需；文献管理由技能提供）
+# 获取 key: 按所安装文献技能的说明列出/选择集合
+# 迁移或新建项目后请填写实际 collection_key（check.py 会在未配置时 warning 提醒）
+[zotero]
+collection_key = TODO_FILL_ME
+collection_name = TODO_FILL_ME
+
+[word_count]
+# 字数区间：留空则按 (文体, 语言) 取基准（journal+en 6000-10000 词、dissertation+zh 2-12 万字）。
+# 其余组合框架不判定、只报告字数——硬套一个区间只会误判。需要判定就显式写：
+# body_min = 6000
+# body_max = 10000
+# abstract_max = 300
+

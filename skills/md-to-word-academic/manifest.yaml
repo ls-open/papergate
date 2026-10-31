@@ -1,0 +1,9 @@
+name: md-to-word-academic
+version: 1.0.0
+description: "学术 Markdown → 期刊/学位论文 Word 导出（md-to-word 引擎的论文侧适配层）。"
+commands:
+  - name: export
+    entry: export_cli.py
+    help: "导出 Word：papergate.py export <paper.md> -t <目标.docx>"
+writes:
+  - write/export/

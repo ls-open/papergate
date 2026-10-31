@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" name-as-sort-order="first">
+  <info>
+    <title>Minimal Simulation Style</title>
+    <id>simulation-minimal</id>
+    <category citation-format="numeric"/>
+  </info>
+  <citation>
+    <layout>
+      <text variable="citation-number"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>

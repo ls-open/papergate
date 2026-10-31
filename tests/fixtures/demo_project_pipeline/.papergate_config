@@ -1,0 +1,17 @@
+[papergate]
+path = .
+
+[project]
+name = demo_project_pipeline
+type = empirical
+has_data = false
+has_scripts = false
+
+[zotero]
+collection_key = SIM12345
+
+[word_count]
+profile = custom
+body_min = 200
+body_max = 20000
+abstract_max = 300

@@ -1,0 +1,41 @@
+#!/bin/bash
+# PaperGate commit-msg hook — 验证提交格式
+# 格式：[<id>] <domain>/<type>：<summary>
+# - domain：必须在白名单中（9个大类）
+# - type：自由填写，只要求非空
+# - summary：至少10个字符，确保有足够的信息量
+# 跳过：git commit --no-verify
+
+MSG_FILE="$1"
+[ -f "$MSG_FILE" ] || exit 0
+
+# C locale 修复（否则 sed 把 UTF-8 拆字节，中文 commit message 截断）
+export LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+
+subject=$(head -n 1 "$MSG_FILE" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+case "$subject" in
+  Merge*|Revert*|Initial*) exit 0 ;;
+esac
+
+# 合法 domain（9个大类，与 AGENTS.md §五 同步）
+DOMAINS='写作|审查|投稿|文献|数据|框架|工具|标准|技能'
+
+# 1. 检查基本格式：[<id>] <domain>/<type>：<summary>
+if ! echo "$subject" | grep -qE "^\[[a-zA-Z0-9-]{1,20}\] (${DOMAINS})/[^ /]+[：:]"; then
+  echo "[commit-msg] 格式错误: $subject" >&2
+  echo "[commit-msg] 应为: [<id>] <domain>/<type>：<summary>" >&2
+  echo "[commit-msg] domain 必须为: ${DOMAINS}" >&2
+  echo "[commit-msg] type 自由填写（如：新增/修正/优化/修复/清理等）" >&2
+  echo "[commit-msg] 跳过: git commit --no-verify" >&2
+  exit 1
+fi
+
+# 2. 检查 summary 部分是否有实质内容（至少10个字符）
+summary=$(echo "$subject" | sed 's/^\[[a-zA-Z0-9-]*\] [^/]*\/[^:：]*[：:] *//')
+summary_len=${#summary}
+if [ "$summary_len" -lt 10 ]; then
+  echo "[commit-msg] 描述太短（${summary_len}字符），至少需要10个字符" >&2
+  echo "[commit-msg] 当前描述: $summary" >&2
+  echo "[commit-msg] 跳过: git commit --no-verify" >&2
+  exit 1
+fi

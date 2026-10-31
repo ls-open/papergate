@@ -1,0 +1,27 @@
+[papergate]
+path = ../..
+
+[project]
+name = demo-paper
+has_data = false
+has_scripts = false
+primary_language = en
+write_dir = write
+scripts_dir = scripts
+results_dir = results
+notes_dir = references/notes
+pdfs_dir = references/pdfs
+bib_file = write/references.bib
+
+# 文体档位：驱动引用基准与字数默认档
+#   journal       期刊论文（IMRaD），默认
+#   dissertation  学位论文
+[document]
+kind = journal
+
+[word_count]
+# 示例项目故意把区间调小，便于 clone 后立刻看到“通过”的输出。
+# 真实项目留空即可按 (文体, 语言) 取默认基准。
+body_min = 900
+body_max = 2000
+abstract_max = 300

@@ -1,0 +1,24 @@
+# Citation File Format（https://citation-file-format.github.io/）
+cff-version: 1.2.0
+title: "PaperGate: a deterministic, check-gated framework for academic writing"
+message: "If you use PaperGate in your research, please cite it as below."
+type: software
+version: "1.0.0"
+license: MIT
+abstract: >-
+  PaperGate turns the non-deterministic parts of academic writing into deterministic,
+  machine-checked rules. The checks ask whether the manuscript, the bibliography, the
+  reading notes and the analysis outputs agree with each other, while the paper's
+  history in git supplies the traceability a review process needs. Standards state what
+  counts as correct, the check command executes them, and skills wrap the literature
+  and export tooling.
+keywords:
+  - academic writing
+  - reproducibility
+  - citation audit
+  - research workflow
+  - git
+authors:
+  - name: "ls-open"
+    website: "https://github.com/ls-open"
+repository-code: "https://github.com/ls-open/papergate"

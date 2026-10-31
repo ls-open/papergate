@@ -1,0 +1,59 @@
+# Data — 原始数据必须入库（唯一不可再生的事实，覆盖后只能靠 Git 历史找回）
+
+# Reference PDFs（大文件，不跟踪，可通过 zotero 重新获取）
+references/pdfs/*
+!references/pdfs/.gitkeep
+
+# Results — 分析中间输出，可由脚本重新生成
+results/*.csv
+results/models/
+results/supplementary/
+
+# Diagnostics — 每次运行覆盖的审计/分析快照，不跟踪
+results/diagnostics/
+
+# Processed — 清洗缓存，管线可重新生成
+processed/*
+!processed/.gitkeep
+
+# Temp — 中间临时产出，AI 会话产生的分析文件，每次可重新生成
+tmp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv
+venv/
+env/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Editor temp files
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/

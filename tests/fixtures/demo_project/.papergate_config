@@ -1,0 +1,9 @@
+[papergate]
+path = .
+
+[project]
+name = demo_project
+type = empirical
+
+[zotero]
+collection_key = ABCDEFGH

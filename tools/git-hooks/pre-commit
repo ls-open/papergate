@@ -1,0 +1,71 @@
+#!/bin/bash
+# PaperGate pre-commit hook — 门卫：检查 staging 区有无违规产物 + 框架代码静态校验
+#
+# 检查项（不跑测试——测试在 pre-push 跑，避免阻塞 commit）：
+#   1) 大文件（>5MB）—— 应放外置/backup，不应进 git
+#   2) 密钥/凭证（.env / .pem / .key / id_rsa / credentials.{json,yml,yaml}）
+#   3) 未解决的 merge conflict 标记（<<<<<<< / ======= / >>>>>>>）
+#   4) 框架代码改动 → ruff + mypy（口径同 .github/workflows/ci.yml 的 lint job，多含 tests/）
+#
+# 关于第 4 项：为防止框架代码违规静默累积，将轻量静态检查（ruff + mypy）
+# 挂载到 commit 钩子（耗时 ~1s）；全量 pytest 留作阶段自检。
+#
+# 只在暂存内容涉及框架代码时触发：改论文不该被开发工具链拦住。
+# 缺 ruff/mypy 时**中止而非跳过**（同 export.sh：守卫不存在＝守护不存在），
+# 但同样只对框架改动生效——写论文永远不需要装这两个工具。
+#
+# 跳过：git commit --no-verify
+
+set -e
+STAGED=$(git diff --cached --name-only)
+
+# 1) 大文件（>5MB 不应进 git）
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
+  if [ "$size" -gt 5242880 ]; then
+    echo "[pre-commit] 大文件: $f ($((size/1024/1024))MB) — 应放外置/backup" >&2
+    exit 1
+  fi
+done <<< "$STAGED"
+
+# 2) 密钥/凭证
+if echo "$STAGED" | grep -qE '\.(env|pem|key)$|id_rsa$|credentials\.(json|ya?ml)$'; then
+  echo "[pre-commit] 检测到可能的密钥/凭证文件，请确认是否误提交" >&2
+  exit 1
+fi
+
+# 3) Merge conflict 标记
+if git diff --cached | grep -qE '^(<{7}|={7}|>{7})'; then
+  echo "[pre-commit] 检测到未解决的 merge conflict 标记" >&2
+  exit 1
+fi
+
+# 4) 框架代码改动 → ruff + mypy（范围与命令对齐 CI 的 lint job，避免两套判据漂移）
+if echo "$STAGED" | grep -qE '^papergate/(tools/|skills/|tests/|papergate\.py$)'; then
+  # 自定位框架根：本钩子就在 <框架>/tools/git-hooks/ 下，不依赖仓库布局
+  HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PAPERGATE_DIR="$(cd "$HOOK_DIR/../.." && pwd)"
+
+  for tool in ruff mypy; do
+    if ! python3 -m "$tool" --version >/dev/null 2>&1; then
+      echo "[pre-commit] 改动涉及框架代码，但缺少 $tool —— 静态校验无法进行。" >&2
+      echo "[pre-commit] 安装：python3 -m pip install ruff mypy" >&2
+      echo "[pre-commit] 确需跳过校验：git commit --no-verify" >&2
+      exit 1
+    fi
+  done
+
+  echo "[pre-commit] 框架代码改动 → ruff + mypy 校验…"
+  if ! (cd "$PAPERGATE_DIR" && python3 -m ruff check tools/ skills/ tests/ papergate.py); then
+    echo "[pre-commit] ruff 未通过（同 CI lint job，多含 tests/）；修完重试" >&2
+    exit 1
+  fi
+  if ! (cd "$PAPERGATE_DIR" && python3 -m mypy tools/ tests/ papergate.py); then
+    echo "[pre-commit] mypy 未通过（同 CI lint job，多含 tests/）；修完重试" >&2
+    exit 1
+  fi
+  echo "[pre-commit] ruff + mypy 通过 ✅"
+fi
+
+echo "[pre-commit] 通过 ✅"

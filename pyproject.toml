@@ -1,0 +1,62 @@
+[build-system]
+# >=70.1 起 setuptools 自带打包后端，editable 安装不再需要单独的 wheel 包
+requires = ["setuptools>=70.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "papergate"
+description = "确定性优先的学术论文全流程框架：标准写清什么叫对，check 机器执行，git 留痕"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "PaperGate contributors" }]
+keywords = [
+    "academic-writing", "research-workflow", "reproducibility",
+    "citation-audit", "markdown", "docx", "git",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Topic :: Education",
+]
+# 核心只依赖 PyYAML（frontmatter 解析）。技能依赖拆成可选组，装了才生效。
+dependencies = ["PyYAML>=6.0"]
+# 版本单一来源 = VERSION 文件（与 check --framework、dist.py 同源）
+dynamic = ["version"]
+
+[project.optional-dependencies]
+# 导出技能（Markdown → 期刊/学位论文 Word）
+export = ["md-to-word-docx>=3.0,<4"]
+# 文献管理技能（Zotero 同步 + 中文 citekey）
+literature = ["requests>=2.28", "pypinyin>=0.49"]
+# Word 对比工具（papergate diff）
+docx = ["python-docx>=0.8", "lxml>=4.0"]
+# 开发与测试
+dev = ["pytest>=7", "coverage>=7.0", "ruff>=0.5", "mypy>=1.0"]
+# 核心 + 开发工具 + 自带技能依赖
+all = [
+    "md-to-word-docx>=3.0,<4",
+    "requests>=2.28", "pypinyin>=0.49",
+    "python-docx>=0.8", "lxml>=4.0",
+    "pytest>=7", "coverage>=7.0", "ruff>=0.5", "mypy>=1.0",
+]
+
+[project.scripts]
+papergate = "papergate:main"
+
+[project.urls]
+Homepage = "https://github.com/ls-open/papergate"
+Issues = "https://github.com/ls-open/papergate/issues"
+
+[tool.setuptools]
+# 框架不是库：只暴露入口模块，standards/template/skills/tools 是**数据**，
+# 按源码树相对定位。故安装方式是 editable（见 README「安装」）。
+py-modules = ["papergate"]
+
+[tool.setuptools.dynamic]
+version = { file = ["VERSION"] }

@@ -1,0 +1,65 @@
+# 本仓是独立仓库（仓库根 = papergate/）。工作流在推到远端后生效。
+# 路径与依赖安装均按「仓库根 = papergate/」写，与 pyproject.toml 同源。
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: pip install -e ".[all]"
+      - name: Git identity
+        # 多个测试会临时 git init + commit。runner 上没有全局身份，
+        # 裸 `git commit` 以 128 退出，本地配过就发现不了。
+        run: |
+          git config --global user.name "papergate-ci"
+          git config --global user.email "ci@example.invalid"
+      - name: Framework self-check
+        run: python3 papergate.py check --framework
+      - name: Skills discovery
+        run: python3 papergate.py skills
+      - name: Run test suite
+        # live 标记的测试需要真实 Zotero API key / 网络，CI 环境不可用——显式排除
+        run: python -m pytest tests/ -q -m "not live"
+      - name: Demo project check
+        # 示例项目必须保持“clone 下来就能跑”，且写作期 0 error。
+        run: |
+          cd examples/demo-paper
+          python3 ../../papergate.py check --stage writing
+      - name: Coverage gate (core checks)
+        # 只对核心检查模块计门槛（check*/lib_*）；CLI 工具层（diff_docx/rename_notes/note_section）
+        # 覆盖率低是设计取舍，不参与门槛；门槛 75% 仅防核心模块回退。
+        run: |
+          python -m coverage run --source=tools -m pytest tests/ -q -m "not live" --disable-warnings
+          python -m coverage report --include="tools/check*,tools/check_writing/*,tools/lib_*" --fail-under=75
+
+  # B类：静态检查（ruff + mypy）
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+      - name: Run ruff
+        # 扫全仓：examples/ 与 template/ 是用户直接抄走的脚本，同样要过
+        run: ruff check .
+      - name: Run mypy
+        run: mypy tools/ papergate.py

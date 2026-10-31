@@ -1,0 +1,21 @@
+# 跨平台行尾与二进制文件标记
+# 详见 ../papergate/standards/system.md
+
+# 文本文件统一为 LF
+* text=auto eol=lf
+
+# Shell 脚本强制 LF
+*.sh text eol=lf
+
+# Windows 批处理强制 CRLF
+*.bat text eol=crlf
+
+# 二进制文件（不做行尾转换）
+*.png binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.zip binary
+*.pkl binary
+*.npy binary
+data/** binary

@@ -1,0 +1,10 @@
+# ruff 配置（PaperGate 框架静态检查）
+# lint 阻断门禁：ruff/mypy 失败即阻止提交，防止静态检查形同虚设。
+line-length = 100
+target-version = "py311"
+
+[lint]
+# 显式写死规则集，不依赖 ruff 各版本的默认值。
+# 此前这里留空，0.15 默认是这四条、0.17 默认已扩到 TRY/DJ 等，
+# 同一次提交在本地绿、在 CI 红 400 条——门禁不该随工具版本漂移。
+select = ["E4", "E7", "E9", "F"]

@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment — 敏感凭证，禁止提交
+.env
+.quota_counter.json
+.venv
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Models — 本地离线模型，不纳入版本控制
+models/
+
+# Logs
+*.log
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+
+# Lint cache
+.ruff_cache/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Review sessions — AI 审计会话产物，每次重新生成
+review/sessions/
