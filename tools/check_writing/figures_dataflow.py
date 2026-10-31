@@ -255,7 +255,9 @@ def check_figure_dpi(ctx, ) -> CheckResult:
         elif dpi is not None and dpi >= REQUIRED_DPI:
             cr.add(True, detail)
         elif dpi is not None:
-            # 物理宽不足 1200px 且低于 300 DPI：柔性 Warning 建议，严禁报 Error 阻断流程
+            # 物理宽不足 1200px 且低于 300 DPI：报错会卡住整条写作流程，而这属于
+            # 交稿前人工能看见的问题，故只提示、不阻断（见 test_checks_writing
+            # 的 test_referenced_bitmap_below_300_warns_not_errors）。
             cr.add(False, detail,
                    warning=f"{ref}（paper.md L{line}）实测 {dpi} DPI（{px}，宽度不足 1200px），低于 {REQUIRED_DPI} DPI 标准——"
                            f"建议按 {REQUIRED_DPI} DPI 重绘以保障印刷清晰度",
@@ -264,7 +266,7 @@ def check_figure_dpi(ctx, ) -> CheckResult:
                            "instruction": f"按 {REQUIRED_DPI} DPI 重绘该图（savefig(dpi={REQUIRED_DPI})），"
                                           f"或从矢量源按目标尺寸光栅化（pdftoppm -r {REQUIRED_DPI}）"})
         else:
-            # 未写入分辨率信息且宽度不足 1200px
+            # 未写入分辨率信息且宽度不足 1200px：判不了，只提示，不阻断
             cr.add(False, detail,
                    warning=f"{ref}（paper.md L{line}）未写入分辨率信息且宽度不足 1200px（{px}）——"
                            f"交稿前请确认该图按 {REQUIRED_DPI} DPI 重绘",

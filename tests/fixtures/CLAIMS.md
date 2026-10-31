@@ -17,7 +17,7 @@
 | 声称来源 | 章节 | 声称（硬规/阻塞/门禁） | check_key | 语义锁 |
 |:---------|:-----|:----------------------|:----------|:-------|
 | standards/writing/data-flow.md | §1.0 数据采集子阶段 / §1.3 管线产出登记 | 采集快照必须登记+入库；分析产出必须登记依赖；未登记/未入库/依赖过期即提示（投稿期阻塞） | results_manifest | submission_error |
-| standards/writing/data-flow.md | §二 图的产出约定 | 位图 DPI 统一 300；不合格图引用被拦截 | figure_dpi | — |
+| standards/writing/data-flow.md | §二 图的产出约定 | 位图 DPI 统一 300；不合格图引用给提示、不阻断 | figure_dpi | — |
 | standards/writing/data-flow.md | §三 表的产出约定 | 每张表的数据源必须经 table_map.json 显式声明；映射文件缺失报 warning 提示补充 | table_data_closure | — |
 | standards/writing/citation-standards.md | §2.1 键数基准 | 各章引用键数达标，投稿期硬门禁（不达标阻塞投稿） | citation_density | submission_error |
 | standards/writing/citation-standards.md | §八 文献库防篡改与单向同步 | references.bib 必须纳入 Git 跟踪（未跟踪即报错） | bib_git_tracked | — |

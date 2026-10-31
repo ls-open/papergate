@@ -122,7 +122,7 @@ papergate/
 ├── template/             ← 新项目骨架（papergate.py new 复制）
 ├── skills/               ← 可插拔技能（export / literature-manager / 任意技能）
 ├── examples/demo-paper/  ← 可直接运行的示例项目
-├── tests/                ← 929 个测试 + 2 个仿真项目
+├── tests/                ← 930 个测试 + 2 个仿真项目
 └── framework/            ← 设计文档（new-project）
 ```
 
@@ -174,7 +174,7 @@ skills/<name>/
 | 指标 | 数值 |
 | :--- | :--- |
 | 核心检查项 | 68 项（`papergate.py check --list` 实时生成） |
-| 测试 | 929 个，923 通过 / 0 失败 / 6 跳过（跳过的是要真 Zotero 和网络的） |
+| 测试 | 930 个，924 通过 / 0 失败 / 6 跳过（跳过的是要真 Zotero 和网络的） |
 | 框架自省 | 11/11 通过，0 error，1 条警告（文献技能未配 `.env`，属正常） |
 | 示例项目 | `examples/demo-paper` 基础 + 写作期检查 0 error |
 | CI | Python 3.11 / 3.13 矩阵 + ruff + mypy + 覆盖率门槛 |

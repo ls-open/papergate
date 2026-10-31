@@ -250,5 +250,14 @@ class TestWritingFormatBehavior(unittest.TestCase):
         self.assertTrue(cr.warning_items, "被引用位图低于 300 DPI 且像素不足时应给出警告提示")
         self.assertTrue(any("72 DPI" in e["message"] for e in cr.warning_items))
 
+    def test_figure_dpi_unknown_is_warning_not_error(self):
+        """没写 pHYs 时判不了，只提示不阻断——判不了的不能当没问题，也不该卡住流程。"""
+        tmp = _copy_fixture()
+        (tmp / "scripts").mkdir(parents=True, exist_ok=True)
+        _write_png(tmp / "results" / "figures" / "overview.png", dpi=None, px=(900, 600))
+        cr = check.check_figure_dpi(_ctx_for(tmp))
+        self.assertEqual(cr.error_items, [], "缺分辨率元数据不应阻断")
+        self.assertTrue(any("未写入分辨率信息" in w["message"] for w in cr.warning_items))
+
 if __name__ == "__main__":
     unittest.main()
