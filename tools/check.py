@@ -314,9 +314,11 @@ def main():
     parser = argparse.ArgumentParser(description="PaperGate 体系自检脚本")
     parser.add_argument(
         "--stage",
-        choices=["writing", "citation", "review", "submission"],
+        choices=["basic", "writing", "citation", "review", "submission"],
         action="append",
-        help="按阶段执行检查（可多次指定，如 --stage writing --stage citation）。--stage submission 在投稿期运行",
+        help="按阶段执行检查（可多次指定，如 --stage writing --stage citation）。"
+             "--stage basic 只跑配置、目录、技能等基础检查（准备期默认就是这个）；"
+             "--stage submission 在投稿期运行",
     )
     parser.add_argument("--all", action="store_true", help="执行全部检查")
     parser.add_argument("--check", type=str, default=None,

@@ -934,13 +934,10 @@ def show_status(json_output: bool = False):
             print(f"⚠ 审查时效: 最新审计距今 {days} 天，建议确认是否需要复审")
     checks = status_info.get("checks", [])
     if checks:
-        check_strs = []
-        for c in checks:
-            if c.startswith("--stage "):
-                check_strs.append(c.replace("--stage ", ""))
-            else:
-                check_strs.append(c)
-        print(f"建议检查: --stage {' --stage '.join(check_strs)}")
+        # 条目本身就是完整参数（`--stage writing`、`--all`），直接拼即可。
+        # 旧写法先剥 `--stage ` 再统一加回去，遇到 `--all` 会拼成
+        # 「--stage --all」这种不存在的命令。
+        print(f"建议检查: {' '.join(checks)}")
     next_step = status_info.get("next_step")
     if next_step:
         print(f"下一步: {next_step}")
