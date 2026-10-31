@@ -174,7 +174,7 @@ skills/<name>/
 | 指标 | 数值 |
 | :--- | :--- |
 | 核心检查项 | 68 项（`papergate.py check --list` 实时生成） |
-| 测试 | 930 个，924 通过 / 0 失败 / 6 跳过（跳过的是要真 Zotero 和网络的） |
+| 测试 | 930 个。干净 clone 下 924 通过 / 0 失败 / 6 跳过——跳过的是「两份 AGENTS.md 硬条目一致」哨兵，它只在框架仓没有上级工作区 `AGENTS.md` 时跳过；按第一节 `init` 出工作区后这 6 条会跑起来。要真 Zotero 的 live 测试需 `PAPERGATE_LIVE=1` 才收集 |
 | 框架自省 | 11/11 通过，0 error，1 条警告（文献技能未配 `.env`，属正常） |
 | 示例项目 | `examples/demo-paper` 基础 + 写作期检查 0 error |
 | CI | Python 3.11 / 3.13 矩阵 + ruff + mypy + 覆盖率门槛 |
