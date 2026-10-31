@@ -33,7 +33,15 @@ my-research/
 └── paper-b/
 ```
 
-示例项目的输出应当接近：
+刚建好的项目正文是空的，所以停在准备期，`check` 只跑基础检查：
+
+```
+PaperGate 自检 [基础检查] | 通过: 10/10 | 错误: 0 | 警告: 2
+```
+
+这两条警告是「文献库还没接」和「`review/` 目录还没建」，项目推进后会自然消失。
+
+写下去之后检查项就多起来了。仓库自带的 `examples/demo-paper` 是一个写了一半的项目，输出接近：
 
 ```
 PaperGate 自检 [基础检查 + 写作期检查] | 通过: 47/53 | 错误: 0 | 警告: 2 | 未启用: 6
@@ -41,7 +49,7 @@ PaperGate 自检 [基础检查 + 写作期检查] | 通过: 47/53 | 错误: 0 | 
 
 `未启用` 不是失败，是「这块能力需要技能，而你没有装」。见第五节。
 
-警告条数跟本机配置有关（文献库接没接、`review/` 目录建没建），换台机器会变；**错误数应当始终是 0**。
+这个示例项目在任何机器上跑，错误数都应当是 0；警告条数跟本机配置有关（文献库接没接、`review/` 目录建没建），换台机器会变。
 
 **新建项目默认处于「准备期」**：`write/paper.md` 的正文区一个字都没写时（frontmatter 和 HTML 注释不算），只跑配置、目录、技能这类基础检查，不报字数、标题、引用这些内容问题。正文写下第一个字，下次 `check` 就回到写作期，全部检查照常跑。
 
@@ -129,7 +137,7 @@ papergate/
 命令入口：
 
 ```bash
-python3 papergate.py new my-paper        # 从模板建项目（git init + 首次提交 + 自检）
+python3 papergate.py new my-paper        # 从模板建项目（纳入工作区仓库并暂存 + 自检）
 python3 papergate.py status              # 阶段 / git / 文献 / 论文 / 上次自检
 python3 papergate.py check --stage writing
 python3 papergate.py check --stage submission
@@ -161,7 +169,7 @@ skills/<name>/
 - **第三方检索扩展**：爬虫类检索易受外部接口变动影响，不内置在核心仓库中；如需使用，可按 `skills/` 规范编写独立技能接入；
 - **审查解耦为技能**：不同学科与团队的评审标准差异极大，硬编码进核心会导致流程僵化。审查由独立技能读取 `standards/` 产出报告；框架核心只负责阶段状态机与通用门禁。未配置审查技能时，`check --stage review` 会明确提示「审查由技能提供」，不产生假通过；
 - **即插即用**：技能目录完全独立，移除某个技能目录，对应的能力与子命令同步移除，框架核心门禁与状态机不受任何影响；任何包含 `SKILL.md` 的目录均可被自动发现；项目本地 `skills/` 可同名覆盖框架技能；
-- **写入权限沙箱**：技能默认只能写入临时目录 `tmp/skills/<name>/`；仅在 `manifest.yaml` 中显式声明 `writes` 权限时，才允许写入 `write/` 或 `results/` 等正式目录。
+- **产出边界靠声明，不是沙箱**：技能默认把产物写进 `tmp/skills/<name>/`；要落到 `write/`、`results/` 这类正式目录，需在 `manifest.yaml` 里声明 `writes`，`papergate.py skills <name>` 会打印声明的可写路径。这是**约定**——框架不做路径拦截，技能代码以当前用户权限运行，所以只安装可信来源的技能。见 [`skills/README.md`](skills/README.md)。
 
 完整技能契约见 [`skills/README.md`](skills/README.md)。
 

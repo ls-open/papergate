@@ -137,10 +137,15 @@ CHECK_REGISTRY = {
 ```
 writing → citation → review → submission → revision
 ```
-（注：CHECK_REGISTRY 的自检分阶段为 `basic` / `writing` / `citation` / `review` / `submission` / `framework`；`framework` 只在 `check --framework` 下运行，判的是框架自身完整性（standards 齐备、SKILL.md 引用有效等），不进论文项目的默认面。`review` 阶段不注册专属检查，审查由技能执行；核心只保留阶段判定与写作/引用门禁。修订期作为全流程业务阶段，运行自检时映射至 `writing` 阶段）。
+（注：CHECK_REGISTRY 的自检分阶段为 `basic` / `writing` / `citation` / `review` / `submission` / `framework`；`framework` 只在 `check --framework` 下运行，判的是框架自身完整性（standards 齐备、SKILL.md 引用有效等），不进论文项目的默认面。`review` 阶段没有专属检查，只复用 writing 的 `paper_title_hierarchy`；审查能力本身由技能执行，核心只保留阶段判定与写作/引用门禁。修订期作为全流程业务阶段，运行自检时映射至 `writing` 阶段）。
 
-- 阶段判定：`lib_config.detect_status`（投稿包就绪 + 无 `-submitted` 标签 > 修订目录（有投稿历史）>
-  退稿重投 > 审查会话 > 写作期）
+- 阶段判定：`lib_config.detect_status`，按优先级从上到下取第一个命中的分支：
+  1. **准备期**——正文区一字未写，且没有审查会话、修订目录、投稿包、投稿标签；
+  2. **修订期**——有 `review/revisions/` 且曾投过稿（任一 tag 含 `-submitted`）；
+  3. **投稿期**——投稿包就绪（`write/export/` 下有非隐藏子目录）；
+  4. **退稿重投**（阶段仍报写作期，substage 为 `resubmit`）——曾投过稿、无活跃修订、无审查会话；
+  5. **审查期**——`review/sessions/` 非空；
+  6. **写作期**——以上都不匹配。
 - 同一条规则在不同阶段不同严格度（哲学 §四）：写作期 warning 不阻塞，投稿期 error 阻塞
 - 早期草稿子阶段：`is_early_draft` 按正文词数阈值放宽（`EARLY_DRAFT_MIN_WORDS`）
 

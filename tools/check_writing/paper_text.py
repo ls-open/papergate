@@ -340,7 +340,8 @@ def check_paper_title_hierarchy(ctx, ) -> CheckResult:
     4. 章节编号深度必须等于 `#` 数量（# 1. → 1 级，## 2.1 → 2 级）
     5. Abstract 若用 `#` 标题，必须是 1 级（## Abstract 是错的——会被 Quarto 渲染为 Heading 2）
 
-    原理见 SKILL.md §〇 第 4 条「标题层级规范」：`#` 固定映射 Heading 1，论文大标题用 YAML title 而非 `#`。
+    原理：`#` 固定映射 Word 的 Heading 1，论文大标题用 YAML `title` 而非 `#`，
+    所以正文里第一个 `#` 就是一级章节，层级不能跳、编号深度必须与 `#` 数量一致。
     """
     cr = CheckResult("paper.md 标题层级（# 1 级起、连续、编号深度匹配）")
     if not ctx.paper_md.exists():

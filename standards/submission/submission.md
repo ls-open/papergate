@@ -16,7 +16,7 @@
 |:-----|:---------------|:----------|
 | 用户说"准备投稿" | 前置不满足时，是否仍要进入投稿流程 | 三项前置的实测结果：审查技能是否闭环（`review/sessions/` 最新一轮；未装技能则显示未启用）、工作区是否干净、字数是否在目标期刊范围内 |
 | 生成投稿包过程中 | ① 论文内容的实质性修改（删段／补段／改结论）② 声明项的具体内容（资助、CRediT 等只有作者知道）③ 投稿信内容 | 可对比的方案或骨架，而不是问"你想怎么写" |
-| **打投稿标签前** | 是否打 tag；确认目标期刊 | 该期刊的引用风格／字数限制／Abstract 结构／声明项要求（**自行查阅官方投稿指南，不依赖预设**，结论写入 `write/export/<目标>/submission_requirements.md`）。标签命名与版本号规则见 `AGENTS.md §四 Git 标签`（唯一权威，本文不重复） |
+| **打投稿标签前** | 是否打 tag；确认目标期刊 | 该期刊的引用风格／字数限制／Abstract 结构／声明项要求（**自行查阅官方投稿指南，不依赖预设**，结论写入 `write/export/<目标>/submission_requirements.md`）。标签命名与版本号规则见 `AGENTS.md §七 提交规范`（唯一权威，本文不重复） |
 | 收到审稿意见／被拒后 | 修订策略（是否需重跑数据）；被拒后是否修订再投、投哪家 | 意见分类（内容／数据／格式）+ 归纳摘要；该刊标签指向的投稿包是否完整可用；新旧目标的格式差异清单 |
 
 > 以下都是 AI 的活，**不在本表**：跑 `check --stage submission`、确认工作区干净、适配后 grep 引用连接词（作者-年份风格）、导出后自检（docx 非空／`csl:` 路径／字数／图片齐全）——全部由 check 与 §二 易错点速查表覆盖；版式核验见该表末行。
@@ -37,7 +37,7 @@ main                                      ← 唯一分支：期刊无关的规�
 **版本架构**：
 - `paper.md`：主版本（唯一内容源）。投稿适配从它复制。
 - `submission_manuscript.md`：投稿包的格式版（从 `paper.md` 复制 + 期刊格式适配），与源稿同仓并存。
-- 标签：投稿动作的归档锚点，命名与版本号规则见 `AGENTS.md §四 Git 标签`（唯一权威）。
+- 标签：投稿动作的归档锚点，命名与版本号规则见 `AGENTS.md §七 提交规范`（唯一权威）。
 
 **两条常驻规则**：
 
@@ -156,7 +156,7 @@ git commit -m "[<应用标识>] 审查/新增：第R<轮次>轮审稿意见回�
 git tag <项目名>-v<主版本>.<次版本>-<目标>-revised-R<轮次>
 ```
 
-标签命名与版本号规则见 `AGENTS.md §四 Git 标签`（唯一权威，`check_git_tag_naming` 自动校验）。
+标签命名与版本号规则见 `AGENTS.md §七 提交规范`（唯一权威，`check_git_tag_naming` 自动校验）。
 
 ### 7. 上传
 
@@ -202,4 +202,4 @@ git tag <项目名>-v<主版本>.<次版本>-<目标>-revised-R<轮次>
    - 若有独立表格：`python3 ../papergate/papergate.py export write/export/<目标>/tables.md -o write/export/<目标>/Tables.docx`
    - 模板不必预先准备也不入库：导出时按同目录唯一的 `<目标>_requirements.txt` 实时生成、用完即删
 4. 输出 `generation_log.md`，按上文四节写全。**这一条不是收尾文书工作**：渲染抽查与警告判读是本流程里唯二"没跑也看不出来"的步骤，落成文字才可验收
-5. 全部完成后打投稿标签（命名与版本号见 `AGENTS.md §四 Git 标签`），并跑 `python3 ../papergate/papergate.py check --stage submission` 确认 0 error
+5. 全部完成后打投稿标签（命名与版本号见 `AGENTS.md §七 提交规范`），并跑 `python3 ../papergate/papergate.py check --stage submission` 确认 0 error

@@ -1167,7 +1167,7 @@ def check_note_structure(ctx, ) -> CheckResult:
         note_lang = str(fm_data.get("lang") or "").strip().lower() or \
             str(ctx.project_config.get("primary_language", "en")).strip().lower()
         if note_lang == "zh":
-            # 中文词表兼容 note-refine 标准头（## Abstract / ## References 对两种
+            # 中文词表兼容早期笔记工具的标准头（## Abstract / ## References 对两种
             # 语言通用），中文文献笔记两种写法都接受：纯中文头或标准英文头。
             section_kws = ["摘要", "abstract", "引言", "绪论", "方法", "结果", "讨论", "结论"]
             anchor_kws = ["摘要", "abstract", "引言", "绪论", "讨论", "结论"]
@@ -1178,7 +1178,7 @@ def check_note_structure(ctx, ) -> CheckResult:
             ref_kws = ["references", "bibliography"]
 
         # 检查审计定位锚点（轻方案）：有任一锚点（abstract/introduction/discussion
-        # 或中文对应词）即可按引用意图定向读取（见 standards/writing/citation-standards.md 证据查找规则）；
+        # 或中文对应词）即可按引用意图定向读取（见 standards/writing/citation-standards.md §七 文献笔记类型与证据等级）；
         # 理论/综述类文献天然无 method/result，不强制。全缺才视为无法定向阅读。
         found = []
         missing = []

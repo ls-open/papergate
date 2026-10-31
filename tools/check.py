@@ -194,7 +194,8 @@ CHECK_REGISTRY = {
     "evidence_level": (check_evidence_level, ("writing", "citation")),
     "citation_overuse": (check_citation_overuse, ("writing", "citation")),
     "citation_repetition": (check_citation_repetition, ("writing", "citation")),
-    # 审查期没有内置检查项：审查能力由技能提供，未安装技能时该阶段显示「未启用」
+    # 审查期没有专属检查：审查能力由技能提供，未安装技能时该阶段显示「未启用」。
+    # 上面 paper_title_hierarchy 挂在 review 下，只是复用写作期的标题层级判据。
     # 投稿期
     "submission_tag": (check_submission_tag, "submission"),
     "export_engine": (check_export_engine, "submission"),

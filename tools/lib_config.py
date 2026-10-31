@@ -158,14 +158,15 @@ def _paper_body_is_empty(paper_md: Path) -> bool:
 
 
 def detect_stage(project_root: Path) -> str:
-    """推断项目当前阶段：投稿期/修订期/审查期/写作期（向下兼容）
+    """推断项目当前阶段（向下兼容），返回 detect_status 的 stage 字段。
 
-    判定规则（与 AGENTS.md §三 新会话了解现状 一致）：
-    1. 投稿包就绪（write/export/ 含 submission_manuscript.md）且项目无 -submitted 标签 → 投稿期
-    2. 项目曾投过稿（任意 tag 含 -submitted，非仅最新 tag）且 review/revisions/ 非空 → 修订期
-    3. 项目曾投过稿（任意 tag 含 -submitted）且 review/revisions/ 空 → 退稿重投（写作期）
-    4. review/sessions/ 非空 → 审查期
-    5. 以上均不匹配 → 写作期（默认）
+    判定规则（与 ARCHITECTURE §3.2 一致），按优先级从上到下取第一个命中：
+    1. 正文区一字未写，且无审查会话 / 修订目录 / 投稿包 / 投稿标签 → 准备期
+    2. 有 review/revisions/ 且曾投过稿（任一 tag 含 -submitted） → 修订期
+    3. 投稿包就绪（write/export/ 下有非隐藏子目录） → 投稿期
+    4. 曾投过稿、无活跃修订、无审查会话 → 写作期（substage=resubmit，退稿重投）
+    5. review/sessions/ 非空 → 审查期
+    6. 以上均不匹配 → 写作期（默认）
     """
     return detect_status(project_root)["stage"]
 

@@ -23,7 +23,7 @@ PaperGate 的设计原则见 [README §三](../README.md)：确定性交给代�
 
 `tmp/` 是临时文件收容所（`.gitignore` 排除），按需创建，模板不预建。**改 framework 代码前先读 `ARCHITECTURE.md`**（模块边界/调用关系/关键机制）。
 
-四阶段（写作/审查/投稿/修订）路由见 `AGENTS.md §二 2.1`，阶段判断用 `papergate.py status`。
+四阶段（写作/审查/投稿/修订）该读哪些文档见 `AGENTS.md §三 文档导航`，阶段判断用 `papergate.py status`。
 
 ---
 
@@ -61,7 +61,7 @@ Severity 术语定义为两套独立用途的坐标轴（分属不同场景，�
 
 **技能单源设计**：`papergate/skills/` 是技能的唯一权威来源（git 追踪）。当前对话按索引判断需要哪个技能后，`Read papergate/skills/<name>/SKILL.md` 获取详细使用说明。
 
-> **关键要求**：所有技能脚本使用相对路径（同目录 `.env`、`$SCRIPT_DIR/csl/`），不依赖外部路径。
+> **关键要求**：所有技能脚本使用相对路径（`$SCRIPT_DIR/csl/` 这类），不依赖调用方的当前目录；凭据属于**用户级配置**，放 `~/.config/papergate/<技能名>.env`，不要放进技能目录——技能目录是 git 追踪的，会被分发出去。
 
 **技能清单（含统一 CLI 入口与触发条件）见 `AGENTS.md §五`**，本文件不重复（新增做法见 §六）。
 
@@ -91,4 +91,4 @@ Severity 术语定义为两套独立用途的坐标轴（分属不同场景，�
 
 ## 六、新增模块指南
 
-**新增检查项的详细步骤见 `ARCHITECTURE.md §五`「修改指南」**（注册 → 测试 → COVERAGE 登记，三处同步由测试锁死）。**新增可选能力（审查/文献/检索）不用改核心**：建 `skills/<name>/`（`SKILL.md` + 可选 `manifest.yaml`，契约见 `skills/README.md`）即可。
+**新增检查项的详细步骤见 `ARCHITECTURE.md §五`「修改指南」**（注册 → 测试 → 在 `tests/fixtures/CLAIMS.md` 登记声称，三处同步由测试锁死）。**新增可选能力（审查/文献/检索）不用改核心**：建 `skills/<name>/`（`SKILL.md` + 可选 `manifest.yaml`，契约见 `skills/README.md`）即可。
