@@ -41,6 +41,7 @@ from check_basic import (
     check_gitignore,
     check_hardcoded_paths,
     check_papergate_config,
+    check_required_skills,
     check_root_agent_md,
     check_skill_completeness,
     check_skill_md_references,
@@ -133,6 +134,7 @@ from check_report import (
 CHECK_REGISTRY = {
     # 基础
     "papergate_config": (check_papergate_config, "basic"),
+    "required_skills": (check_required_skills, "basic"),
     "template_completeness": (check_template_completeness, "basic"),
     "root_agent_md": (check_root_agent_md, "framework"),
     "skill_completeness": (check_skill_completeness, "framework"),
@@ -462,6 +464,7 @@ def main():
         cfg = load_config(project_root)
         ctx = build_context(cfg)
         registry, skill_report, skill_errors = build_registry(project_root)
+        ctx.skill_report = skill_report  # 供「必备技能是否在位」这类检查使用
 
         # --paper 参数覆盖默认的 ctx.paper_md
         if args.paper:

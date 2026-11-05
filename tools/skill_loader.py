@@ -30,6 +30,16 @@ NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # 检查项注册名与核心 CHECK_REGISTRY 的键同形（下划线分隔），故比技能名宽松一格。
 CHECK_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
+# 产物区：技能写入路径的合法落点，与项目目录契约同源（standards/system.md）。
+# 技能不能自己开辟新产物区——要加就先进目录契约，否则「结构即契约」无从保障。
+WRITABLE_ROOTS = ("write", "references", "results", "review", "tmp")
+
+# 核心稿件契约的产物生产者：写 references.bib / 文献笔记，以及产出投稿包。
+# 核心检查（bib 闭合、笔记结构、投稿包结构）无条件读这些产物，所以它们不是
+# 「可选能力」——缺了不是少一块功能，而是稿件契约没有生产者。
+# 由核心声明而不是由技能自报：技能没装，谁也报不出自己该在。
+REQUIRED_SKILLS = ("literature-manager", "md-to-word-academic")
+
 
 @dataclass(frozen=True)
 class SkillCommand:
@@ -208,6 +218,11 @@ def _parse_writes(raw, skill_name: str) -> tuple[str, ...]:
         path = raw_path.rstrip("/")
         if path.startswith("/") or ".." in Path(path).parts:
             raise ValueError(f"manifest.writes 不允许绝对路径或 ..: {item!r}")
+        root = Path(path).parts[0]
+        if root not in WRITABLE_ROOTS:
+            raise ValueError(
+                f"manifest.writes 的 {item!r} 不在产物区内（{'/'.join(WRITABLE_ROOTS)}）："
+                "技能不能自行开辟新的产物区，需要新区域请先改项目目录契约")
         declared.append(path + ("/" if raw_path.endswith("/") else ""))
     return (staging, *declared)
 

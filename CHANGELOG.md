@@ -10,6 +10,12 @@
 - 技能命令转发带上 `PYTHONPATH`，技能脚本才 import 得到 `skill_api`
 - 技能加载失败（入口缺失 / 模块导不进 / 函数名写错 / 检查项缺 `stage`）逐条报出，
   不再静默降级为「未启用」——装坏比没装更危险
+- **技能分档**：`literature-manager` / `md-to-word-academic` 由核心声明为**必备**
+  （`REQUIRED_SKILLS`）——核心检查无条件读它们的产物，缺了报 error 而不是「未启用」；
+  审查、检索仍是可选。新检查项 `required_skills`
+- **`writes` 有了约束**：声明的路径必须落在产物区内
+  （`write/` `references/` `results/` `review/` `tmp/`），越界即加载失败。
+  技能不能自行开辟产物区——产物位置由目录契约定义，技能只是生产者
 - 新增 `framework/philosophy.md`：设计哲学与「有意不做」的红线，作为改框架时的单一理由来源
 - README 精简：去掉会过时的计数（检查项数、测试数、示例输出），改为给出可自查的命令
 

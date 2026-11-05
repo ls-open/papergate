@@ -40,6 +40,9 @@ class ProjectContext:
     system_md: Path
     papergate_dir: Path
     stage: Any = "basic"
+    # 已安装技能扫描结果（SkillReport）。由 check.py 在构建注册表时挂上；
+    # 直接调用 build_context 的场景（测试、单函数复用）为 None，用到它的检查需自带兜底。
+    skill_report: Any = None
 
 def build_context(config: dict) -> "ProjectContext":
     """根据 .papergate_config 构建项目上下文（替代原 set_project_paths）。"""

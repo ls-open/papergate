@@ -374,6 +374,34 @@ def check_root_agent_md(ctx, ) -> CheckResult:
            error="缺少可用的 AGENTS.md（工作区根与 papergate/template/ 均无）——AI 没有导航入口" if found is None else None)
     return cr
 
+def check_required_skills(ctx, ) -> CheckResult:
+    """核心稿件契约的产物生产者是否在位（references.bib / 笔记 / 投稿包）。
+
+    这些技能不是可选能力：核心检查无条件读它们的产物，缺了不是少一块功能，
+    而是稿件契约根本没人生产。与 `export_engine`（查导出引擎二进制的 error）
+    同级——能力缺失必须说成「缺」，不能说成「未启用」。
+    """
+    from skill_loader import REQUIRED_SKILLS
+
+    cr = CheckResult("必备技能在位（稿件契约的产物生产者）")
+    report = ctx.skill_report
+    if report is None:  # 未经 check.py 装配（直接调用 build_context 的场景）
+        cr.add(True, detail={"note": "未提供技能扫描结果，跳过"})
+        return cr
+    installed = {s.name for s in report.skills}
+    for name in REQUIRED_SKILLS:
+        present = name in installed
+        cr.add(present, {"skill": name, "installed": present},
+               error=None if present else (
+                   f"必备技能 `{name}` 未安装：核心的稿件契约（参考文献 / 文献笔记 / 投稿包）"
+                   f"没有生产者。装回 `skills/{name}/`，或确认项目确实不需要该产物"),
+               severity="major",
+               action=None if present else {
+                   "type": "confirm", "target": "system",
+                   "instruction": f"把 `{name}` 技能目录放回 `skills/`（框架级或项目级均可）"})
+    return cr
+
+
 def check_top_dirs(ctx, ) -> CheckResult:
     """顶层必需目录是否存在 + 设计外目录反向校验"""
     cr = CheckResult("顶层目录完整性")

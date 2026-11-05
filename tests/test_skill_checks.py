@@ -242,6 +242,76 @@ def test_missing_function_is_reported(tmp_path, monkeypatch):
     assert any("check_other" in e for e in errors)
 
 
+# ---- 产物区与必备技能 ----
+
+def test_writes_outside_artifact_areas_rejected(tmp_path):
+    """技能不能自行开辟产物区：写入点必须落在项目目录契约内。"""
+    _skill(tmp_path, "demo", """
+        name: demo
+        description: "测试技能"
+        writes:
+          - output/
+        """)
+    report = load_skills([(tmp_path, "framework")])
+    assert report.skills == []
+    assert any("产物区" in e for e in report.errors)
+
+
+def test_writes_inside_artifact_areas_accepted(tmp_path):
+    _skill(tmp_path, "demo", """
+        name: demo
+        description: "测试技能"
+        writes:
+          - write/export/
+          - references/notes/
+        """)
+    report = load_skills([(tmp_path, "framework")])
+    assert report.errors == []
+    assert "write/export/" in report.skills[0].writes
+
+
+def test_required_skill_missing_is_error(tmp_path):
+    """稿件契约的生产者缺失要报 error，不能说成「未启用」。
+
+    核心检查无条件读 references.bib / 笔记 / 投稿包；没有生产者时，
+    那是一堆修不好的红，不是少一块可选功能。
+    """
+    from _support import copy_fixture, ctx_for
+
+    project = copy_fixture(prefix="pk_required_")
+    ctx = ctx_for(project)
+    ctx.skill_report = load_skills([(tmp_path, "framework")])  # 空目录：一个都没装
+    cr = check.check_required_skills(ctx)
+    messages = [e["message"] for e in cr.error_items]
+    assert messages, "必备技能缺失必须报错"
+    assert all("未安装" in m for m in messages)
+
+
+def test_required_skills_present_passes(tmp_path):
+    from _support import copy_fixture, ctx_for
+    from skill_loader import REQUIRED_SKILLS
+
+    for name in REQUIRED_SKILLS:
+        _skill(tmp_path, name, f"""
+            name: {name}
+            description: "必备技能"
+            """)
+    project = copy_fixture(prefix="pk_required_ok_")
+    ctx = ctx_for(project)
+    ctx.skill_report = load_skills([(tmp_path, "framework")])
+    cr = check.check_required_skills(ctx)
+    assert cr.error_items == [], f"必备技能齐全不应报错: {cr.error_items}"
+
+
+def test_required_skills_skipped_without_report():
+    """未经 check.py 装配的场景（直接 build_context）跳过，不误报。"""
+    from _support import copy_fixture, ctx_for
+
+    ctx = ctx_for(copy_fixture(prefix="pk_required_none_"))
+    cr = check.check_required_skills(ctx)
+    assert cr.error_items == []
+
+
 # ---- 状态钩子 ----
 
 STATUS_MODULE = """

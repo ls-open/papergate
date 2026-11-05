@@ -163,17 +163,46 @@ def describe(project_root, status):
 
 ### 4.3 产出边界
 
-技能大概率会产出文件，但正式目录有硬性规则：
+技能大概率会产出文件。产物分两类，规矩不同：
 
-| 位置 | 谁能写 | 进 git |
+| 类型 | 位置 | 进 git |
 | :--- | :--- | :-- |
-| `tmp/skills/<name>/` | 所有技能（默认暂存区） | 否 |
-| `write/`、`references/`、`results/` | 只有 `writes:` 声明过的受信任技能 | 是 |
+| 中间产物（默认暂存区） | `tmp/skills/<name>/` | 否 |
+| 项目物证（稿件、笔记、投稿包、审查报告） | `write/`、`references/`、`results/`、`review/` | 是 |
+
+**产物位置由项目目录契约定义，技能只是生产者。** 所以 `writes:` 声明必须落在
+上面那四个区（外加 `tmp/`）之内，越界直接当加载错误：
+
+> `manifest.writes 的 'output/' 不在产物区内（write/references/results/review/tmp）`
+
+技能不能自行开辟新的产物区——要加就先进 `standards/` 的目录契约。否则「结构即契约」
+就成了一句空话：每个技能都能在自己喜欢的地方落一个目录。
+
+三条边界说明：
 
 - `writes` 只接受相对路径，不允许绝对路径或 `..`；
-- 外来技能默认不声明 `writes`，产物落 `tmp/skills/<name>/`；
-- 要进入正式目录，必须**显式提升**：复核 → 复制到 `write/` 或 `results/` → 跑 `check`；
-- `papergate.py skills <name>` 会打印该技能的可写路径。
+- **框架不拦截实际写入**：`writes` 是「认领」，不是权限位。技能代码以当前用户权限运行，
+  所以只装可信来源的技能；
+- 外来技能不声明 `writes` 时，产物落 `tmp/skills/<name>/`；要进正式目录必须**显式提升**：
+  复核 → 复制到对应区 → 跑 `check`。
+
+### 4.4 必备技能
+
+少数技能不是可选能力——核心检查**无条件读它们的产物**。这类由核心声明为必备：
+
+```python
+REQUIRED_SKILLS = ("literature-manager", "md-to-word-academic")
+```
+
+| 技能 | 生产的物证 | 缺了会怎样 |
+| :-- | :-- | :-- |
+| `literature-manager` | `write/references.bib`、`references/notes/`、`references/pdfs/` | 引用闭合、笔记结构这些检查没有对象可查 |
+| `md-to-word-academic` | `write/export/<目标>/` 投稿包 | 投稿期检查读不到产物，且无法重新生成 |
+
+缺失时 `check` 报 **error**（不是「未启用」）：能力缺失必须说成「缺」。
+「未启用」留给真正的可选能力——审查、检索这类，装了才有、没装就没有。
+
+名字为什么由核心声明、而不由技能自报？**技能没装，谁也报不出自己该在。**
 
 ---
 

@@ -56,12 +56,17 @@ PaperGate 围绕一条主链路设计：**标准定义"什么是对的" → 检�
 
 **技能层（`skills/<name>/`，有就用、没有就不用）**
 
-| 块 | 保证什么 | 依赖 | 删除之后 |
+| 块 | 档位 | 保证什么 | 删除之后 |
 |:--|:--|:--|:--|
-| ⑤ 导出 | 学术 Markdown → 期刊/学校格式 Word | ② | `export` 命令消失；② 照跑 |
-| ⑥ 文献管理 | Zotero→bib、PDF→笔记、笔记定点读取 | ② | `lit` 命令消失；② 照跑 |
-| ⑦ 审查（可选技能） | 技能自带审计协议，贡献 `review` 阶段的检查项与子状态判读 | ②③ | 该阶段检查项消失，`check --stage review` 显示「未启用」，不产出通过结论 |
-| ⑧ 任意技能 | 任何带 `SKILL.md` 的技能目录 | — | 不出现在 `skills` 列表 |
+| ⑤ 导出 | **必备** | 学术 Markdown → 期刊/学校格式 Word，产出 `write/export/` 投稿包 | 投稿期检查读不到产物且无法重生成，`required_skills` 报 error |
+| ⑥ 文献管理 | **必备** | Zotero→`references.bib`、PDF→`references/notes/` | 引用闭合/笔记结构没对象可查，`required_skills` 报 error |
+| ⑦ 审查 | 可选 | 技能自带审计协议，贡献 `review` 阶段检查项与子状态判读 | 该阶段检查项消失，`check --stage review` 显示「未启用」 |
+| ⑧ 任意技能 | 可选 | 任何带 `SKILL.md` 的技能目录 | 不出现在 `skills` 列表 |
+
+**必备 ≠ 内置**：⑤⑥ 仍然住 `skills/`、仍然可被替换实现，只是不允许缺席——
+核心检查无条件读它们的产物（见 `skill_loader.REQUIRED_SKILLS`）。判据是
+「核心检查读不读它产出的东西」，不是「它重不重要」。产物位置由目录契约定义，
+技能声明 `writes` 只能认领既有产物区，不能自行开辟。
 
 **技能能贡献什么**（`manifest.yaml`，契约见 `skills/README.md`）
 
