@@ -38,10 +38,16 @@ DENYLIST = SCRIPT_DIR / "dist_denylist.txt"
 INCLUDE = [
     "VERSION", "README.md", "ARCHITECTURE.md", "LICENSE",
     "pyproject.toml", "CITATION.cff",
+    # README 直接链接、CI 直接运行的文档与示例：漏了就是死链和红构建
+    "CHANGELOG.md", "CONTRIBUTING.md",
     "ruff.toml", "mypy.ini", "pytest.ini",
     "papergate.py",
     ".gitignore", ".github",
     "tools", "template", "standards", "framework", "skills",
+    "examples",
+    # tests/ 默认不随产物走（fixtures 含真实文献），但 README 链接了这份说明，
+    # 单独带上它，避免发布产物里出现死链。
+    "tests/README.md",
 ]
 # 需要 --with-tests 才带的目录
 WITH_TESTS = ["tests"]
@@ -99,7 +105,8 @@ def export(out: Path, with_tests: bool, excludes: list[str], dry_run: bool) -> l
             print(f" ⚠ 白名单条目不存在，跳过: {rel}")
             continue
         for src, relative in _iter_sources(KIT_ROOT, rel, excludes):
-            copied.append(relative)
+            if relative not in copied:  # 显式单文件与所在目录同时登记时只算一次
+                copied.append(relative)
             if not dry_run:
                 dest = out / relative
                 dest.parent.mkdir(parents=True, exist_ok=True)

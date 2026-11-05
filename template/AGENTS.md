@@ -57,7 +57,8 @@ __PAPERGATE_PROJECT_CMD__ status       # 看阶段与待办
 | **投稿** | `standards/submission/submission.md` | 投稿包、Word 导出、多期刊管理 |
 | **修订** | `standards/submission/submission.md §三/§四` | 多轮修订 SOP |
 | **改框架时** | `framework/philosophy.md` | 设计哲学：人机边界、核心与技能分界、什么决定不做 |
-| | `framework/new-project.md` | 脚手架创建、旧项目迁入、文献库配置 |
+| | `framework/new-project.md` | 脚手架创建、文献库配置 |
+| | `framework/migration.md` | 已有（非标准化）项目怎么迁进来 |
 | | `ARCHITECTURE.md` | 模块边界、新增检查项步骤 |
 
 ---

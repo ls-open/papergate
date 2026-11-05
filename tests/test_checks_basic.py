@@ -684,6 +684,27 @@ class TestTopDirs(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
             shutil.rmtree(pk.parent, ignore_errors=True)
 
+    def test_good_project_local_skills_dir_allowed(self):
+        """项目本地 skills/ 是技能系统的既定位置（同名覆盖框架技能），不算设计外目录。
+
+        回归：此前白名单漏了 skills，按文档往项目里装一个技能，
+        `top_dirs` 会直接判结构违规——技能装得进去，却过不了检查。
+        """
+        tmp = _copy_fixture()
+        pk = _fake_papergate_tree()
+        try:
+            ctx = _ctx_for(tmp)
+            ctx.skill_dir = pk / "skills"
+            ctx.papergate_dir = tmp / ".." / "external_papergate"
+            (tmp / "skills" / "some-skill").mkdir(parents=True, exist_ok=True)
+            cr = check.check_top_dirs(ctx)
+            self.assertFalse(
+                any("设计外目录" in e["message"] for e in cr.error_items),
+                f"项目本地 skills/ 不应被判为设计外目录: {cr.error_items}")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+            shutil.rmtree(pk.parent, ignore_errors=True)
+
     def test_good_design_scope_clean_passes(self):
         # 论文项目根下仅设计内目录 → 不报设计外目录错误
         tmp = _copy_fixture()

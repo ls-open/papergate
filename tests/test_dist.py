@@ -95,7 +95,12 @@ class TestEndToEnd(unittest.TestCase):
             self.assertTrue((out / "papergate.py").is_file())
             self.assertTrue((out / "template" / "AGENTS.md").is_file(),
                             "项目级导航模板必须随框架发布")
-            self.assertFalse((out / "tests").exists(), "未脱敏时不应带 tests/")
+            # tests/ 默认不带（fixtures 体量大、非运行必需），但 README 链接了
+            # tests/README.md，那一份说明要跟着走——除此之外不许有测试代码或 fixture。
+            shipped_tests = sorted(p.name for p in (out / "tests").iterdir()) \
+                if (out / "tests").exists() else []
+            self.assertEqual(shipped_tests, ["README.md"],
+                             f"未脱敏时 tests/ 只应带说明文件，实际: {shipped_tests}")
             self.assertFalse((out / "tools" / "dist_denylist.txt").exists(),
                              "脱敏清单本身含真实标识，不得进产物")
             self.assertIn("自检通过", r.stdout)

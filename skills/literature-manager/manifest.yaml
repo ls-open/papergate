@@ -12,6 +12,7 @@ requires:
   - requests
   - pypinyin
   - yaml
+  - fitz   # PyMuPDF：PDF 文本层提取（pdf2text / zotero 附件）
 writes:
   - write/references.bib
   - references/notes/

@@ -406,6 +406,9 @@ def check_top_dirs(ctx, ) -> CheckResult:
         allowed = {
             ctx.write_dir.name, ctx.scripts_dir.name, ctx.results_dir.name,
             ctx.review_dir.name, "references", "data", "processed", "tmp",
+            # 项目本地技能目录：技能系统扫描 `<项目>/skills/`（同名覆盖框架技能），
+            # 不在这里放行的话，按文档装一个技能反而会被判成结构违规。
+            "skills",
         }
         for d in sorted(ctx.root_dir.iterdir()) if ctx.root_dir.exists() else []:
             if d.is_dir() and not d.name.startswith(".") and d.name not in allowed:
