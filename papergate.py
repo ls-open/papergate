@@ -81,9 +81,9 @@ def _all_commands(report) -> dict[str, Path]:
     return commands
 
 
-# 技能状态钩子不得改写的字段：阶段状态机与分支归核心，技能只补
+# 技能状态钩子不得改写的字段：阶段状态机归核心，技能只补
 # 「这个阶段里进行到哪了」（第几轮、完成几个模块、差什么）以及它自己的附加信息。
-_STATUS_PROTECTED_KEYS = ("stage", "branch")
+_STATUS_PROTECTED_KEYS = ("stage",)
 
 
 def _apply_skill_status(project_root: Path, status_info: dict) -> dict:

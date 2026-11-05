@@ -158,8 +158,8 @@ def describe(project_root, status):
 ```
 
 - 入参：项目根 + 核心已判好的 `status` 字典；返回要**覆盖**的字段（返回 `None` 即不干预）；
-- **`stage` / `branch` 不接受**——阶段状态机与分支归核心，技能只能说明
-  「这个阶段里进行到哪了」；其他字段（如技能自己的附加信息）原样并入输出；
+- **`stage` 不接受**——阶段状态机归核心，技能只能说明「这个阶段里进行到哪了」；
+  其他字段（如技能自己的附加信息）原样并入输出；
 - 钩子抛异常 → 忽略该技能并在 stderr 提示，`status` 照常输出。
 
 ### 4.3 产出边界
@@ -191,9 +191,7 @@ def describe(project_root, status):
 
 少数技能不是可选能力——核心检查**无条件读它们的产物**。这类由核心声明为必备：
 
-```python
-REQUIRED_SKILLS = ("literature-manager", "md-to-word-academic")
-```
+名单的唯一来源是 `tools/skill_loader.py` 的 `REQUIRED_SKILLS`（改名单改代码，不在文档里重复）。
 
 | 技能 | 生产的物证 | 缺了会怎样 |
 | :-- | :-- | :-- |

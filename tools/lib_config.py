@@ -213,7 +213,6 @@ def detect_status(project_root: Path) -> dict:
             "substage": str, # 细粒度状态标识（resubmit 等）
             "substage_label": str, # 人类可读描述
             "evidence": [str], # 触发该判断的证据文件（相对）
-            "branch": str, # 当前分支
             "checks": [str], # 建议运行的 check 参数
             "next_step": str, # AI 下一步应做的事
         }
@@ -229,7 +228,6 @@ def detect_status(project_root: Path) -> dict:
     单仓库合并后无 submit/ 分支，投稿动作 = 打 `<项目名>-v<主>.<次>-<目标>-submitted` 标签；
     阶段判定纯文件 + 项目标签驱动，不依赖 git 结构。
     """
-    branch = run_git(project_root, ["branch", "--show-current"]) or ""
     tags = "\n".join(project_tags(project_root))
 
     # 路径
@@ -285,7 +283,6 @@ def detect_status(project_root: Path) -> dict:
             "substage": "not_started",
             "substage_label": "项目已创建，正文还没有开始写",
             "evidence": [],
-            "branch": branch,
             "checks": ["--stage basic"],
             "next_step": "先填 write/research-plan.md 的研究问题与方法，再写 paper.md 的第一节",
         }
@@ -306,7 +303,6 @@ def detect_status(project_root: Path) -> dict:
                 "substage": "response_done",
                 "substage_label": "回复信已写，待修订 paper",
                 "evidence": evidence,
-                "branch": branch,
                 "checks": ["--stage writing", "--stage citation", "--stage review"],
                 "next_step": "逐条处理审稿意见，修改 paper.md",
             }
@@ -316,7 +312,6 @@ def detect_status(project_root: Path) -> dict:
                 "substage": "revising",
                 "substage_label": "收到审稿意见，待写回复信和修订",
                 "evidence": evidence,
-                "branch": branch,
                 "checks": ["--stage writing"],
                 "next_step": "阅读审稿意见，开始写 response_letter.md",
             }
@@ -396,7 +391,6 @@ def detect_status(project_root: Path) -> dict:
                     "substage": "submitted",
                     "substage_label": f"已投稿至 {active['journal']}（tag: {active['tag']}），审稿中",
                     "evidence": evidence,
-                    "branch": branch,
                     "checks": ["--stage review", "--stage submission"],
                     "next_step": "等待期刊审稿意见；若收到返修意见创建 review/revisions/R1/ 开始修订",
                 }
@@ -406,7 +400,6 @@ def detect_status(project_root: Path) -> dict:
                     "substage": "ready",
                     "substage_label": f"投稿包已更新（距上次投稿 tag: {active['tag']} 有新修改），待打新 tag 后提交",
                     "evidence": evidence,
-                    "branch": branch,
                     "checks": ["--stage review", "--stage submission"],
                     "next_step": "确认投稿包完整性 → 打新版本 tag（如升级次版本号）→ 提交期刊系统",
                 }
@@ -416,7 +409,6 @@ def detect_status(project_root: Path) -> dict:
                     "substage": "ready",
                     "substage_label": f"新期刊（{active['journal']}）投稿包就绪，待打 tag 后提交",
                     "evidence": evidence,
-                    "branch": branch,
                     "checks": ["--stage review", "--stage submission"],
                     "next_step": f"确认投稿包完整性 → 打 git tag ({project_root.name}-v1.0-{active['journal']}-submitted) → 提交期刊系统",
                 }
@@ -426,7 +418,6 @@ def detect_status(project_root: Path) -> dict:
                     "substage": "ready",
                     "substage_label": "投稿包完整，待打 tag 后提交",
                     "evidence": evidence,
-                    "branch": branch,
                     "checks": ["--stage review", "--stage submission"],
                     "next_step": f"确认投稿包完整性 → 打 git tag ({project_root.name}-v1.0-{active['journal']}-submitted) → 提交期刊系统",
                 }
@@ -437,7 +428,6 @@ def detect_status(project_root: Path) -> dict:
                 "substage": "incomplete",
                 "substage_label": "投稿包已开始，但尚未准备完整",
                 "evidence": evidence,
-                "branch": branch,
                 "checks": ["--stage review", "--stage submission"],
                 "next_step": "完成投稿包准备（Read papergate/standards/submission/submission.md）",
             }
@@ -457,7 +447,6 @@ def detect_status(project_root: Path) -> dict:
             "substage": "resubmit",
             "substage_label": f"前次投稿已完成（tag: {tag_info['tag'] if tag_info else '未标记'}）。修改后准备投下一个期刊",
             "evidence": evidence,
-            "branch": branch,
             "checks": ["--stage writing", "--stage citation"],
             "next_step": "根据新期刊要求修改 paper.md → 写完后走标准流程（审查 → 投稿）",
         }
@@ -477,7 +466,6 @@ def detect_status(project_root: Path) -> dict:
                 "substage": "auditing",
                 "substage_label": "审查会话进行中（审查能力由技能提供，未安装技能时无内置审查检查）",
                 "evidence": evidence,
-                "branch": branch,
                 "checks": ["--stage review", "--stage writing", "--stage citation"],
                 "review_freshness": _audit_freshness(paper_md, target),
                 "next_step": "安装审查技能后运行 check --stage review；或按技能说明继续审查",
@@ -488,7 +476,6 @@ def detect_status(project_root: Path) -> dict:
             "substage": "ready",
             "substage_label": "审查就绪，尚未创建审查会话",
             "evidence": evidence,
-            "branch": branch,
             "checks": ["--stage review", "--stage writing", "--stage citation"],
             "next_step": "安装审查技能并创建审查会话",
         }
@@ -500,7 +487,6 @@ def detect_status(project_root: Path) -> dict:
             "substage": "not_started",
             "substage_label": "未检测到 write/paper.md，按写作期处理",
             "evidence": [],
-            "branch": branch,
             "checks": ["--all"],
             "next_step": "开始写 paper.md，配置研究方案和参考文献",
         }
@@ -510,7 +496,6 @@ def detect_status(project_root: Path) -> dict:
         "substage": "writing",
         "substage_label": "写作中",
         "evidence": [rel(paper_md)],
-        "branch": branch,
         "checks": ["--stage writing", "--stage citation"],
         "next_step": "继续写作，注意引用完整性和格式规范",
     }
