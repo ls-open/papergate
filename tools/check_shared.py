@@ -8,6 +8,10 @@ from typing import Any
 from lib_common import count_paper_body_words
 from lib_config import has_submission_evidence, load_config, run_git as _run_git
 
+# 检查可归属的阶段（单一真相源）：check.py 的 --stage 取值、技能 manifest 的
+# checks[].stage 合法值、--list 的分组顺序都从这里取，不再各写一遍。
+CHECK_STAGES = ("basic", "writing", "citation", "review", "submission")
+
 
 @dataclass
 class ProjectContext:

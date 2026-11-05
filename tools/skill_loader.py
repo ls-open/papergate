@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -26,6 +27,8 @@ from lib_common import split_frontmatter
 SKILL_FILE = "SKILL.md"
 MANIFEST_FILE = "manifest.yaml"
 NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+# 检查项注册名与核心 CHECK_REGISTRY 的键同形（下划线分隔），故比技能名宽松一格。
+CHECK_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
 @dataclass(frozen=True)
@@ -35,6 +38,33 @@ class SkillCommand:
     name: str
     entry: Path
     help: str = ""
+
+
+@dataclass(frozen=True)
+class SkillCheck:
+    """技能贡献的一个检查项。
+
+    技能不直接改核心的 `CHECK_REGISTRY`：它声明「我叫什么、入口在哪、函数叫什么、
+    挂哪个阶段」，由核心在运行时合并。技能没装 = 这几项检查不存在，绝不静默通过。
+    """
+
+    name: str
+    entry: Path
+    function: str
+    stage: str | tuple[str, ...]
+    help: str = ""
+
+
+@dataclass(frozen=True)
+class SkillStatusHook:
+    """技能对阶段子状态的补充钩子。
+
+    核心只判「有 review/ 目录 → 审查期」这类粗阶段；审查目录内部怎么解读
+    （第几轮、完成几个模块、还差什么）属于技能知识，不该写进核心的 `detect_status`。
+    """
+
+    entry: Path
+    function: str
 
 
 @dataclass(frozen=True)
@@ -49,6 +79,8 @@ class SkillSpec:
     commands: tuple[SkillCommand, ...] = ()
     requires: tuple[str, ...] = ()
     writes: tuple[str, ...] = ()
+    checks: tuple[SkillCheck, ...] = ()
+    status: SkillStatusHook | None = None
 
     @property
     def skill_md(self) -> Path:
@@ -89,6 +121,26 @@ class SkillReport:
                     continue
                 merged[command.name] = command
         return merged
+
+    def checks(self) -> dict[str, tuple["SkillSpec", SkillCheck]]:
+        """检查项注册名 → (所属技能, 检查项)。同名检查由先加载的技能占用。"""
+        merged: dict[str, tuple[SkillSpec, SkillCheck]] = {}
+        for skill in self.skills:
+            for check in skill.checks:
+                merged.setdefault(check.name, (skill, check))
+        return merged
+
+    def stage_coverage(self) -> set[str]:
+        """已安装技能覆盖了哪些阶段（用于判定「未启用」，见 check.py）。"""
+        stages: set[str] = set()
+        for skill in self.skills:
+            for check in skill.checks:
+                stages.update((check.stage,) if isinstance(check.stage, str) else check.stage)
+        return stages
+
+    def status_hooks(self) -> list[tuple["SkillSpec", SkillStatusHook]]:
+        """按加载顺序返回状态钩子（先者先执行，后者的返回值覆盖前者）。"""
+        return [(s, s.status) for s in self.skills if s.status is not None]
 
 
 def _frontmatter(text: str) -> dict:
@@ -160,6 +212,78 @@ def _parse_writes(raw, skill_name: str) -> tuple[str, ...]:
     return (staging, *declared)
 
 
+def _parse_checks(raw, skill_dir: Path) -> tuple[SkillCheck, ...]:
+    """技能贡献的检查项；每一项必须写清 name / entry / stage。
+
+    stage 必填：没声明阶段的检查永远不会被选中，等于写了个不跑的检查——这比报错更糟。
+    """
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ValueError("manifest.checks 必须是列表")
+    checks: list[SkillCheck] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("manifest.checks 的每一项必须是映射")
+        name = str(item.get("name") or "").strip()
+        entry = str(item.get("entry") or "").strip()
+        if not name or not entry:
+            raise ValueError("manifest.checks 的每一项都必须有 name 和 entry")
+        if not CHECK_NAME_PATTERN.match(name):
+            raise ValueError(f"检查名 {name!r} 不合法（小写字母/数字/连字符/下划线）")
+        if name in seen:
+            raise ValueError(f"manifest.checks 里检查名 {name} 重复")
+        seen.add(name)
+        entry_path = (skill_dir / entry).resolve()
+        if not entry_path.is_file():
+            raise ValueError(f"检查 {name} 的入口不存在: {entry}")
+        checks.append(SkillCheck(
+            name=name,
+            entry=entry_path,
+            function=str(item.get("function") or name).strip(),
+            stage=_parse_check_stage(item.get("stage"), name),
+            help=str(item.get("help") or ""),
+        ))
+    return tuple(checks)
+
+
+def _parse_check_stage(raw, name: str) -> str | tuple[str, ...]:
+    from check_shared import CHECK_STAGES  # 单一真相源，避免两处各列一遍
+
+    if raw is None:
+        raise ValueError(f"检查 {name} 必须声明 stage（否则永远不会被选中）")
+    items = [raw] if isinstance(raw, str) else (list(raw) if isinstance(raw, (list, tuple)) else None)
+    if items is None or not items:
+        raise ValueError(f"检查 {name} 的 stage 必须是非空字符串或字符串列表")
+    stages: list[str] = []
+    for item in items:
+        if not isinstance(item, str) or item.strip() not in CHECK_STAGES:
+            raise ValueError(
+                f"检查 {name} 的 stage 只接受 {'/'.join(CHECK_STAGES)}，收到 {item!r}")
+        stage = item.strip()
+        if stage not in stages:
+            stages.append(stage)
+    return stages[0] if len(stages) == 1 else tuple(stages)
+
+
+def _parse_status(raw, skill_dir: Path) -> SkillStatusHook | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("manifest.status 必须是 entry/function 映射")
+    entry = str(raw.get("entry") or "").strip()
+    if not entry:
+        raise ValueError("manifest.status 必须有 entry")
+    entry_path = (skill_dir / entry).resolve()
+    if not entry_path.is_file():
+        raise ValueError(f"status 钩子入口不存在: {entry}")
+    return SkillStatusHook(
+        entry=entry_path,
+        function=str(raw.get("function") or "describe").strip(),
+    )
+
+
 def _load_one(skill_dir: Path, source: str) -> SkillSpec:
     skill_md = skill_dir / SKILL_FILE
     if not skill_md.is_file():
@@ -186,7 +310,42 @@ def _load_one(skill_dir: Path, source: str) -> SkillSpec:
         commands=_parse_commands(manifest.get("commands"), skill_dir),
         requires=_parse_requires(manifest.get("requires")),
         writes=_parse_writes(manifest.get("writes"), name),
+        checks=_parse_checks(manifest.get("checks"), skill_dir),
+        status=_parse_status(manifest.get("status"), skill_dir),
     )
+
+
+def load_entry_function(entry: Path, function: str):
+    """导入技能入口模块并取出可调用函数（技能的代码只在被接线时才执行）。
+
+    技能按 `from skill_api import ...` 取核心能力，所以这里保证框架 `tools/` 在
+    `sys.path` 上。导入失败或函数缺失一律抛异常——由调用方决定怎么暴露给用户
+    （技能坏了必须看得见，不能当没装）。
+    """
+    tools_dir = str(Path(__file__).resolve().parent)
+    if tools_dir not in sys.path:
+        sys.path.insert(0, tools_dir)
+    module_name = f"papergate_skill_{abs(hash(str(entry)))}"
+    spec = importlib.util.spec_from_file_location(module_name, entry)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"无法加载技能入口: {entry}")
+    module = importlib.util.module_from_spec(spec)
+    # 技能内部的同级模块（如 review_lib.py）在顶层 import —— 导入期把技能目录
+    # 挂上 sys.path，导入完就摘掉，不污染其他技能的同名模块。
+    # 约定：同级模块一律在模块顶层导入，函数体内不做延迟导入。
+    skill_dir = str(entry.parent)
+    sys.path.insert(0, skill_dir)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        try:
+            sys.path.remove(skill_dir)
+        except ValueError:
+            pass
+    func = getattr(module, function, None)
+    if not callable(func):
+        raise ValueError(f"{entry.name} 里没有可调用的函数 {function}")
+    return func
 
 
 def load_skills(roots: list[tuple[Path | str, str]] | None = None) -> SkillReport:

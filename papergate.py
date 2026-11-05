@@ -92,6 +92,33 @@ def _all_commands(report) -> dict[str, Path]:
     return commands
 
 
+# 技能状态钩子不得改写的字段：阶段状态机与分支归核心，技能只补
+# 「这个阶段里进行到哪了」（第几轮、完成几个模块、差什么）以及它自己的附加信息。
+_STATUS_PROTECTED_KEYS = ("stage", "branch")
+
+
+def _apply_skill_status(project_root: Path, status_info: dict) -> dict:
+    """把已装技能的状态补充钩子合进 status_info。
+
+    核心只判粗阶段（有 review/ 目录 → 审查期）；审查目录内部怎么解读属于技能知识，
+    不该写进核心的 detect_status。技能没装就用核心的粗判定，不报错。
+    """
+    from skill_loader import load_entry_function
+
+    report = _skill_report()
+    for spec, hook in report.status_hooks():
+        try:
+            func = load_entry_function(hook.entry, hook.function)
+            override = func(project_root, status_info)
+        except Exception as exc:  # 技能坏了不拖垮 status，但要看得见
+            print(f"提示：技能 {spec.name} 的状态钩子执行失败，已忽略（{exc}）", file=sys.stderr)
+            continue
+        if isinstance(override, dict):
+            status_info.update({k: v for k, v in override.items()
+                                if k not in _STATUS_PROTECTED_KEYS})
+    return status_info
+
+
 def skills_cmd(args: list[str]) -> None:
     """列出已安装技能，或显示某个技能的完整用法。"""
     if "-h" in args or "--help" in args:
@@ -115,6 +142,10 @@ def skills_cmd(args: list[str]) -> None:
                     "description": s.description,
                     "path": str(s.skill_md),
                     "commands": [{"name": c.name, "help": c.help} for c in s.commands],
+                    "checks": [{"name": c.name,
+                                "stage": list(c.stage) if isinstance(c.stage, (tuple, list)) else c.stage,
+                                "help": c.help} for c in s.checks],
+                    "status_hook": s.status.function if s.status is not None else None,
                     "missing_requires": s.missing_requires(),
                     "writes": list(s.writes),
                 }
@@ -138,6 +169,14 @@ def skills_cmd(args: list[str]) -> None:
             print("命令:")
             for command in spec.commands:
                 print(f"  {command.name:18s} {command.help}")
+        if spec.checks:
+            print("检查项:")
+            for check_spec in spec.checks:
+                stages = ("、".join(check_spec.stage) if isinstance(check_spec.stage, (tuple, list))
+                          else check_spec.stage)
+                print(f"  {check_spec.name:18s} [{stages}] {check_spec.help}".rstrip())
+        if spec.status is not None:
+            print(f"状态钩子: {spec.status.function}（补充阶段子状态）")
         missing = spec.missing_requires()
         if missing:
             print(f"缺少依赖: {', '.join(missing)}")
@@ -156,6 +195,12 @@ def skills_cmd(args: list[str]) -> None:
         print(f"      {spec.description}")
         if spec.commands:
             print(f"      命令: {', '.join(c.name for c in spec.commands)}")
+        if spec.checks:
+            stages = {s for c in spec.checks
+                      for s in ((c.stage,) if isinstance(c.stage, str) else c.stage)}
+            print(f"      检查项: {len(spec.checks)} 项（覆盖 {', '.join(sorted(stages))}）")
+        if spec.status is not None:
+            print("      状态钩子: 补充阶段子状态")
         missing = spec.missing_requires()
         if missing:
             print(f"      缺少依赖: {', '.join(missing)}")
@@ -734,6 +779,7 @@ def show_status(json_output: bool = False):
 
     # 阶段推断（共用一次 detect_status 调用，避免重复执行 git 命令）
     status_info = detect_status(project_root)
+    status_info = _apply_skill_status(project_root, status_info)
     stage = status_info.get("stage", "?")
 
     # git 状态（统一 run_git；非 git 仓库返回 None）
@@ -1375,8 +1421,14 @@ def main():
         print(f"错误：工具脚本不存在: {target}")
         sys.exit(1)
 
-    # 转发到对应工具脚本（传入剩余参数）
-    os.execv(sys.executable, [sys.executable, str(target)] + sys.argv[2:])
+    # 转发到对应工具脚本（传入剩余参数）。
+    # 带上 PYTHONPATH=tools/：技能脚本要按契约 `from skill_api import ...` 取核心能力，
+    # 而 execv 起的是新进程，不会继承当前 sys.path。
+    env = dict(os.environ)
+    tools_dir = str(TOOLS_DIR)
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = f"{tools_dir}{os.pathsep}{existing}" if existing else tools_dir
+    os.execve(sys.executable, [sys.executable, str(target)] + sys.argv[2:], env)
 
 
 if __name__ == "__main__":

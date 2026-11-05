@@ -97,6 +97,8 @@ writes:
 | `commands` | 否 | 每项必须含 `name` 与 `entry`（相对技能目录） |
 | `requires` | 否 | Python 模块名列表；只探测是否安装，不导入 |
 | `writes` | 否 | 允许写的路径；缺省只有 `tmp/skills/<name>/` |
+| `checks` | 否 | 贡献给 `CHECK_REGISTRY` 的检查项（见 4.1） |
+| `status` | 否 | 补充阶段子状态的钩子（见 4.2） |
 
 命令接线规则：
 
@@ -105,7 +107,61 @@ writes:
 - 技能缺失 → 命令不存在，调用时提示「未知命令」；
 - 入口文件不存在 / manifest 写坏 → 该技能加载失败，其他技能与核心照常运行。
 
-### 4.1 产出边界
+### 4.1 检查项（`checks`）
+
+核心只提供骨架、稿件契约与阶段状态机；审查、文献检索这类**能力**由技能提供。
+技能不直接改核心的 `CHECK_REGISTRY`，而是声明「叫什么、入口在哪、挂哪个阶段」，
+由核心在运行时合并：
+
+```yaml
+checks:
+  - name: review_sessions          # 注册名，与核心检查键同形
+    entry: checks.py               # 技能目录内的模块
+    function: check_my_rule        # 该模块里的函数名
+    stage: [review, submission]    # 必填；取值同 check.py --stage
+    help: "审查记录完整性"          # 可选
+```
+
+函数签名与核心检查完全一致：`f(ctx: ProjectContext) -> CheckResult`，
+这两个类型从 `skill_api` 导入。合并后技能检查项与核心检查项**无差别**——
+同样按阶段筛选、同样进 JSON、同样算 action_items。
+
+接线规则：
+
+- 检查名与核心检查重名 → **核心优先**，技能那条忽略并报错；
+- 多个技能声明同名检查 → 先加载者占用；
+- **`stage` 必填**：没声明阶段的检查永远不会被选中，等于写了个不跑的检查——
+  所以缺 `stage` 直接当加载错误报，不静默通过；
+- 入口不存在、模块导不进、函数名写错 → 该技能加载失败，`check` 里单列一项
+  「技能加载」（警告）报出来。**装坏的技能比没装更危险，因为它看起来装好了。**
+
+没装任何技能覆盖某个阶段时，核心在该阶段报「未启用」（`skipped`），
+**绝不计为通过**。`python3 papergate.py check --list` 会打印含技能检查项的完整清单。
+
+### 4.2 状态钩子（`status`）
+
+核心只判粗阶段（有 `review/` 目录 → 审查期）。「第几轮、完成几个模块、还差什么」
+属于该能力的知识，不该写进核心的 `detect_status`，由技能补：
+
+```yaml
+status:
+  entry: status.py
+  function: describe
+```
+
+```python
+def describe(project_root, status):
+    return {"substage": "auditing_citation",
+            "substage_label": "引文审计进行中",
+            "next_step": "按 citation-audit.md 继续"}
+```
+
+- 入参：项目根 + 核心已判好的 `status` 字典；返回要**覆盖**的字段（返回 `None` 即不干预）；
+- **`stage` / `branch` 不接受**——阶段状态机与分支归核心，技能只能说明
+  「这个阶段里进行到哪了」；其他字段（如技能自己的附加信息）原样并入输出；
+- 钩子抛异常 → 忽略该技能并在 stderr 提示，`status` 照常输出。
+
+### 4.3 产出边界
 
 技能大概率会产出文件，但正式目录有硬性规则：
 

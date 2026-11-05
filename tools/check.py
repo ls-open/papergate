@@ -69,6 +69,7 @@ from check_citation import (
     check_notes_frontmatter,
 )
 from check_shared import (
+    CHECK_STAGES,
     CheckResult,
     ProjectContext,  # noqa: F401  # 聚合层 re-export（test_unit_checks 依赖 check.ProjectContext）
     build_context,
@@ -228,6 +229,61 @@ FRAMEWORK_CHECK_KEYS = (
 # 未安装技能 = 该能力「未启用」，绝不静默变成「通过」。
 
 
+def _skill_roots(project_root: Path | None) -> list[tuple[Path | str, str]]:
+    """框架自带技能 + 项目本地技能（后者同名覆盖前者）。"""
+    roots: list[tuple[Path | str, str]] = [(Path(__file__).resolve().parent.parent / "skills", "framework")]
+    if project_root is not None:
+        local = project_root / "skills"
+        if local.is_dir():
+            roots.append((local, "project"))
+    return roots
+
+
+def _load_skill_callable(check):
+    """按 manifest 声明加载技能里的检查函数；返回 (函数, 错误信息)。"""
+    from skill_loader import load_entry_function
+
+    try:
+        return load_entry_function(check.entry, check.function), None
+    except Exception as exc:  # 导入失败/函数缺失：这是"技能坏了"，必须报出来
+        return None, str(exc)
+
+
+def build_registry(project_root: Path | None = None):
+    """核心注册表 + 技能声明的检查项。
+
+    返回 (registry, report, errors)：
+      - registry: 注册表快照（核心优先，技能不得覆盖核心同名检查）
+      - report:   技能扫描结果（供调用方判断某阶段有没有技能覆盖）
+      - errors:   技能加载/接线错误，逐条要暴露给用户——技能坏了比没装更危险，
+                  因为它看起来"装好了"
+    """
+    from skill_loader import load_skills
+
+    registry = dict(CHECK_REGISTRY)
+    errors: list[str] = []
+    report = load_skills(_skill_roots(project_root))
+    errors.extend(report.errors)
+    for name, (skill, check) in report.checks().items():
+        if name in registry:
+            errors.append(f"{skill.name}: 检查名 {name} 与核心检查重名，已忽略（核心优先）")
+            continue
+        func, error = _load_skill_callable(check)
+        if func is None:
+            errors.append(f"{skill.name}: 检查 {name} 加载失败: {error}")
+            continue
+        registry[name] = (func, check.stage)
+    return registry, report, errors
+
+
+def _skill_errors_notice(errors: list[str]) -> CheckResult:
+    """技能加载错误单独成项：装坏的技能必须显式报出来，不能当没装处理。"""
+    cr = CheckResult("技能加载（manifest 声明可解析、检查项可导入）")
+    for message in errors:
+        cr.add(False, warning=message)
+    return cr
+
+
 def detect_framework_root(start: Path | None = None) -> Path | None:
     """从 start 向上找框架根：目录同时含 tools/check.py 与 VERSION。"""
     cur = (start or Path.cwd()).resolve()
@@ -236,13 +292,16 @@ def detect_framework_root(start: Path | None = None) -> Path | None:
             return parent
     return None
 
-def get_checks_for_stage(stage, filter_pattern: str | None = None) -> list:
+def get_checks_for_stage(stage, filter_pattern: str | None = None, registry=None) -> list:
     """根据阶段和过滤条件返回要运行的检查列表。
 
     stage: "basic" | "writing" | "citation" | "review" | "submission" | "all"
            或上述阶段的 list（多阶段合并执行，basic 自动包含）
     filter_pattern: 可选，仅运行显示名称或注册名称包含此字符串的检查
+    registry: 可选，默认模块级 CHECK_REGISTRY。传入合并了技能检查项的注册表时，
+              技能检查项与核心检查项在此处无差别——它们只是注册表里的普通条目。
     """
+    registry = CHECK_REGISTRY if registry is None else registry
     # 归一化为集合
     if isinstance(stage, str):
         stages = {stage}
@@ -251,9 +310,9 @@ def get_checks_for_stage(stage, filter_pattern: str | None = None) -> list:
 
     framework_requested = "framework" in stages
     if framework_requested:
-        entries = [(k, CHECK_REGISTRY[k]) for k in FRAMEWORK_CHECK_KEYS]
+        entries = [(k, registry[k]) for k in FRAMEWORK_CHECK_KEYS]
     else:
-        entries = sorted(CHECK_REGISTRY.items())
+        entries = sorted(registry.items())
 
     result = []
     for name, (func, check_stage) in entries:
@@ -317,7 +376,7 @@ def main():
     parser = argparse.ArgumentParser(description="PaperGate 体系自检脚本")
     parser.add_argument(
         "--stage",
-        choices=["basic", "writing", "citation", "review", "submission"],
+        choices=list(CHECK_STAGES),
         action="append",
         help="按阶段执行检查（可多次指定，如 --stage writing --stage citation）。"
              "--stage basic 只跑配置、目录、技能等基础检查（准备期默认就是这个）；"
@@ -352,8 +411,10 @@ def main():
     args = parser.parse_args()
 
     # --list：打印检查清单后直接退出，无需项目上下文
+    # 清单要含技能贡献的检查项，否则「装了什么」和「跑什么」对不上。
+    # 不在项目内时 find_project_root() 返回 None，只列框架自带技能。
     if args.list:
-        _print_check_list(CHECK_REGISTRY)
+        _print_check_list(build_registry(find_project_root())[0])
         sys.exit(0)
 
     # 验证模式下关闭 --fix（避免递归调用时无限循环）
@@ -390,6 +451,8 @@ def main():
                   file=sys.stderr)
         ctx = build_framework_context(project_root)
         current_stage = "framework"
+        # 框架模式只跑固定的框架检查集合，技能不参与：registry 用核心原表。
+        registry, skill_report, skill_errors = CHECK_REGISTRY, None, []
         print(f"框架自检模式：仅运行框架检查集合（{len(FRAMEWORK_CHECK_KEYS)} 项）；默认不落盘，用 --json 或 --save-to 获取结果",
               file=sys.stderr)
         if args.fix:
@@ -398,6 +461,7 @@ def main():
     else:
         cfg = load_config(project_root)
         ctx = build_context(cfg)
+        registry, skill_report, skill_errors = build_registry(project_root)
 
         # --paper 参数覆盖默认的 ctx.paper_md
         if args.paper:
@@ -465,10 +529,12 @@ def main():
         "action_items": [], # AI 可执行的结构化修复指令清单
     }
 
-    # 审查能力由技能提供：核心没有审查专属检查时，显式报「未启用」，绝不计为通过。
+    # 审查能力由技能提供：没有任何已装技能覆盖 review 阶段时，显式报「未启用」，
+    # 绝不计为通过。判定取自技能 manifest 的 checks[].stage，不是写死的提示。
     # 放在门禁之前：即使写作期门禁先阻断，报告里也必须写明审查能力未启用。
     _requested_stages = current_stage if isinstance(current_stage, list) else [current_stage]
-    if "review" in _requested_stages and not args.check:
+    _skill_stages = skill_report.stage_coverage() if skill_report is not None else set()
+    if "review" in _requested_stages and not args.check and "review" not in _skill_stages:
         review_cr = CheckResult("审查能力（由技能提供）")
         review_cr.add_skipped(
             "审查能力未启用：核心不内置审查检查，审查由技能执行"
@@ -478,13 +544,19 @@ def main():
         review_dict["check_key"] = "review_capability"
         results["checks"].append(review_dict)
 
+    # 技能加载错误：装坏的技能必须报出来——它看起来"装好了"，比没装更危险。
+    if skill_errors:
+        err_dict = _skill_errors_notice(skill_errors).to_dict()
+        err_dict["check_key"] = "skill_load_errors"
+        results["checks"].append(err_dict)
+
     # 审查准入门禁：审查期前自动检查写作期+引用期，有 error 则阻断
     # 门禁只作用于自动阶段运行；--check 单检查模式跳过门禁（“仅执行指定检查项”契约）。
     # 投稿期自动模式（["basic","submission","review"]）不跑写作格式门禁——
     # 投稿期按期刊调整格式不被卡（用户决策）；--stage review 显式仍跑门禁。
     if isinstance(current_stage, list) and "review" in current_stage \
             and "submission" not in current_stage and not args.check:
-        gate_checks = get_checks_for_stage(["writing", "citation"])
+        gate_checks = get_checks_for_stage(["writing", "citation"], registry=registry)
         gate_cr = CheckResult("审查准入门禁")
         for gate_name, gate_func in gate_checks:
             try:
@@ -526,7 +598,7 @@ def main():
             sys.exit(1)
 
     # 解析要运行的检查
-    checks_to_run = get_checks_for_stage(current_stage, args.check)
+    checks_to_run = get_checks_for_stage(current_stage, args.check, registry=registry)
 
     if not checks_to_run:
         if args.json:
