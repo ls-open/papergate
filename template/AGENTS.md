@@ -53,10 +53,10 @@ __PAPERGATE_PROJECT_CMD__ status       # 看阶段与待办
 | **写作** | `standards/writing/research-plan.md` | 研究方案指南（项目起点）|
 | | `standards/writing/data-flow.md` | 数据流与脚本规范 |
 | | `standards/writing/citation-standards.md` | 引用标准——引用类判决的唯一权威 |
-| **审查** | `skills/<技能名>/`（若已安装） | 审查协议由技能自带；未安装时 `check --stage review` 显示「审查由技能提供」|
+| **审查** | `skills/<技能名>/`（若已安装） | 审查协议由技能自带；未安装时 `check --stage review` 显示「未启用」|
 | **投稿** | `standards/submission/submission.md` | 投稿包、Word 导出、多期刊管理 |
 | **修订** | `standards/submission/submission.md §三/§四` | 多轮修订 SOP |
-| **改框架时** | `README.md §三` | 设计原则：五条不变量与不做的事 |
+| **改框架时** | `framework/philosophy.md` | 设计哲学：人机边界、核心与技能分界、什么决定不做 |
 | | `framework/new-project.md` | 脚手架创建、旧项目迁入、文献库配置 |
 | | `ARCHITECTURE.md` | 模块边界、新增检查项步骤 |
 

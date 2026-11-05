@@ -40,8 +40,10 @@ PaperGate 围绕一条主链路设计：**标准定义"什么是对的" → 检�
 
 - 核心层不可摘；
 - 技能层有就用、没有就不用：删掉技能目录，核心检查与状态机照跑；
-- 审查不内置：它由技能执行（读 `standards/`、产出报告），`check --stage review` 显示
-  「审查由技能提供」，不产出任何「通过」结论。
+- 审查不内置：它由技能提供检查项与审计协议，没有技能覆盖 `review` 阶段时
+  `check --stage review` 显示「未启用」，不产出任何「通过」结论。
+- 判据：**核心不在，项目开不了工；技能不在，开得了工，只是少一块能力**（见
+  [`framework/philosophy.md` §三](framework/philosophy.md)）。
 
 **核心层（不可摘）**
 
@@ -58,14 +60,27 @@ PaperGate 围绕一条主链路设计：**标准定义"什么是对的" → 检�
 |:--|:--|:--|:--|
 | ⑤ 导出 | 学术 Markdown → 期刊/学校格式 Word | ② | `export` 命令消失；② 照跑 |
 | ⑥ 文献管理 | Zotero→bib、PDF→笔记、笔记定点读取 | ② | `lit` 命令消失；② 照跑 |
-| ⑦ 审查（可选技能） | 由技能读取 `standards/` 并产出审查报告 | ②③ | `check --stage review` 显示「审查由技能提供」，不产出通过结论 |
+| ⑦ 审查（可选技能） | 技能自带审计协议，贡献 `review` 阶段的检查项与子状态判读 | ②③ | 该阶段检查项消失，`check --stage review` 显示「未启用」，不产出通过结论 |
 | ⑧ 任意技能 | 任何带 `SKILL.md` 的技能目录 | — | 不出现在 `skills` 列表 |
+
+**技能能贡献什么**（`manifest.yaml`，契约见 `skills/README.md`）
+
+| 字段 | 作用 | 缺失时 |
+|:--|:--|:--|
+| `commands` | 转发到技能脚本的子命令 | 命令不存在 |
+| `checks` | 并进 `CHECK_REGISTRY` 的检查项（`name` / `entry` / `function` / `stage`） | 该阶段没有这项检查 |
+| `status` | 补充阶段子状态（第几轮、完成到哪） | 核心只报粗阶段 |
+| `writes` | 允许写的正式目录 | 只能写 `tmp/skills/<name>/` |
+
+**合并规则**：核心优先——技能声明与核心同名的检查项一律拒绝并报错；技能之间同名先加载者占用。
+`stage` 必填（没声明阶段 = 永远选不中），入口不存在 / 模块导不进 / 函数名写错 **一律报错**，
+不静默降级（见 [`framework/philosophy.md` §四](framework/philosophy.md)）。
 
 **发现机制**
 
 - `papergate.py skills` 扫描 `<框架>/skills/` 与 `<项目>/skills/`，只读
-  `SKILL.md` 与 `manifest.yaml`，**不 import 技能代码**（`tools/skill_loader.py`）；
-  命令在用户真正调用时才转发；技能缺失 = 命令不存在。
+  `SKILL.md` 与 `manifest.yaml`，**扫描期不 import 技能代码**（`tools/skill_loader.py`）；
+  命令在用户真正调用时才转发；检查项在 `check` 启动时才导入并合并。
 - 技能与框架之间只有 `tools/skill_api.py` 这一层稳定接口，禁止反向 import `tools/lib_*`。
 
 关闭方式都是既有的，不另设开关：⑤ 删 `skills/md-to-word-academic/`、⑥ 删
@@ -206,7 +221,7 @@ write/export/ ─────────→ check_submission（投稿包）
 | 改 docx 主题属性清理 | `tools/lib_docx_theme.py`（唯一权威）|
 | 新增带写操作的工具 | 先做破坏性操作分级：可能破坏既有数据/结果的一律加前置防护（干跑确认、存档检查）。动手前先问「它最坏能毁掉什么、毁掉前有谁拦它」，无拦即补拦 |
 | 新增核心检查项 | 在 `check_*.py` 加函数（首参 ctx）→ `CHECK_REGISTRY` 注册 → 加测试（好/坏样本对见 `tests/fixtures/README.md`）|
-| 新增可选能力（审查/文献/检索） | 建 `skills/<name>/`（`SKILL.md` + 可选 `manifest.yaml`，契约见 `skills/README.md`），**不要改核心注册表**；技能不参与 `check --list` 的检查项统计 |
+| 新增可选能力（审查/文献/检索） | 建 `skills/<name>/`（`SKILL.md` + `manifest.yaml`，契约见 `skills/README.md`），在 `manifest.yaml` 里声明 `checks` / `status` / `commands`，**不要改核心注册表**；技能检查项会进 `check --list`，与核心检查项同等对待 |
 | 改名任何函数/文件/文档 | 改名提交自查：① grep 全局旧名（含 standards/、skills/、ARCHITECTURE.md、AGENTS.md、tests/）② 文档引用同步 ③ 注册表同步。`standards_code_refs` 检查兜底抓 `check_*` 类残留（扫 standards/ + framework/ + skills/ + ARCHITECTURE.md），其余靠自查纪律|
 | 改阶段判定 | `lib_config.detect_status` + `check_shared` 的阶段函数 |
 | 改 config 模板 | `template/scripts/config.py`（`--fix` 从它复制，勿改内嵌）|
@@ -217,7 +232,7 @@ write/export/ ─────────→ check_submission（投稿包）
 
 检查项是资产也是负债。答不出任何一条，就不该加：
 
-1. **对应哪条原则？**（[README §三](README.md) 的五条不变量，找不到 → 不该做）
+1. **对应哪条原则？**（[`framework/philosophy.md`](framework/philosophy.md)，找不到 → 不该做）
 2. **在确定性边界内吗？**（要维护白名单 / 关键词表 / 脆弱正则 → 降级，或交给审查期）
 3. **哪个阶段跑？** 与现有阶段定义冲突吗？
 4. **对应哪个真实踩过的坑？** 说不出来 → 它只是噪音。
@@ -246,7 +261,7 @@ write/export/ ─────────→ check_submission（投稿包）
 
 ### 新增检查项详细步骤
 
-1. **定义函数**：按阶段归属在 `tools/check_basic.py` / `tools/check_writing/`（领域包）/ `check_citation.py` / `check_submission.py` 中定义（首参 `ctx`，见 §一「架构边界原则」）。审查这类能力不放在检查层——它们由技能执行：
+1. **定义函数**：按阶段归属在 `tools/check_basic.py` / `tools/check_writing/`（领域包）/ `check_citation.py` / `check_submission.py` 中定义（首参 `ctx`，见 §一「架构边界原则」）。审查这类**能力块**不放进核心——同样的函数写在技能目录里，由 `manifest.yaml` 的 `checks:` 接线，执行链路完全一致：
 
    ```python
    def check_my_rule(ctx, ) -> CheckResult:
