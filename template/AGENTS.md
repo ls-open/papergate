@@ -143,7 +143,7 @@ AI 每次改完代码或文档后及时提交。同一主题的连续小修可�
 |:--|:--|
 | 改论文内容 | 直接改 `write/paper.md`，再跑 `check` |
 | 改格式要求 | 改项目内的格式文件，不动框架 `standards/` |
-| 改框架行为 | 先读 `README.md §三` 与 `ARCHITECTURE.md`，再动代码 |
+| 改框架行为 | 先读 `framework/philosophy.md` 与 `ARCHITECTURE.md`，再动代码 |
 | 加新技能 | 建 `skills/<name>/`（或项目 `skills/`），写 `SKILL.md`，可选 `manifest.yaml` |
 | 检查规则与论文设计冲突 | 以论文为准：改标准、改检查，或明确记为例外。不要为了过检查去删内容、降要求——**严禁削足适履** |
 | 不确定的删除/重构 | 先说明影响面，取得确认再执行 |

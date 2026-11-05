@@ -8,7 +8,7 @@
 
 ## 〇、设计原则
 
-PaperGate 的设计原则见 [README §三](../README.md)：确定性交给代码、状态在文件里、未启用 ≠ 通过、显式胜过推断、判定不了 ≠ 没问题。
+PaperGate 的设计原则见 [framework/philosophy.md](../framework/philosophy.md)：确定性交给代码、状态在文件里、未启用 ≠ 通过、显式胜过推断、判定不了 ≠ 没问题。
 
 ---
 
@@ -53,7 +53,7 @@ Severity 术语定义为两套独立用途的坐标轴（分属不同场景，�
 | **Safe** | 纯事实核对、通过项确认、无实质影响的小调整 |
 
 > 本节只定义**等级语义**；各等级的修复权限由审查技能在其协议中定义，
-> 人机边界的设计依据见 [README §三](../README.md)。
+> 人机边界的设计依据见 [framework/philosophy.md](../framework/philosophy.md) §二。
 
 ---
 

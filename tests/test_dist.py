@@ -38,27 +38,10 @@ class TestExportWhitelist(unittest.TestCase):
             (root / "tools" / "__pycache__" / "a.cpython-311.pyc").write_text("x", encoding="utf-8")
             (root / "tools" / ".DS_Store").write_text("x", encoding="utf-8")
             with mock.patch.object(dist, "KIT_ROOT", root):
-                copied = {p.as_posix() for p in dist.export(out, False, [], False)}
+                copied = {p.as_posix() for p in dist.export(out, False, False)}
             self.assertEqual(copied, {"VERSION", "tools/a.py"},
                              f"凭证/缓存/脱敏清单不得进产物，实际: {copied}")
 
-    def test_exclude_drops_module(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d) / "kit"
-            out = Path(d) / "out"
-            (root / "skills" / "keep").mkdir(parents=True)
-            (root / "skills" / "drop").mkdir(parents=True)
-            (root / "VERSION").write_text("1.0.0\n", encoding="utf-8")
-            (root / "skills" / "keep" / "SKILL.md").write_text("k\n", encoding="utf-8")
-            (root / "skills" / "drop" / "a.js").write_text("d\n", encoding="utf-8")
-            with mock.patch.object(dist, "KIT_ROOT", root):
-                copied = {p.as_posix() for p in dist.export(out, False, ["skills/drop"], False)}
-            self.assertIn("skills/keep/SKILL.md", copied)
-            self.assertFalse([p for p in copied if p.startswith("skills/drop")],
-                             f"排除的模块不应进产物: {copied}")
-
-
-class TestScrub(unittest.TestCase):
     def test_exact_substring_hit_reports_line(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)

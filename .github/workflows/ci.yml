@@ -30,15 +30,14 @@ jobs:
         run: python3 papergate.py check --framework
       - name: Skills discovery
         run: python3 papergate.py skills
-      - name: Run test suite
-        # live 标记的测试需要真实 Zotero API key / 网络，CI 环境不可用——显式排除
-        run: python -m pytest tests/ -q -m "not live"
       - name: Demo project check
         # 示例项目必须保持“clone 下来就能跑”，且写作期 0 error。
         run: |
           cd examples/demo-paper
           python3 ../../papergate.py check --stage writing
       - name: Coverage gate (core checks)
+        # 一次 pytest 同时产出测试结果与覆盖率（此前另起一步重复跑同一批测试）。
+        # live 标记的测试需要真实 Zotero API key / 网络，CI 环境不可用——显式排除。
         # 只对核心检查模块计门槛（check*/lib_*）；CLI 工具层（diff_docx/rename_notes/note_section）
         # 覆盖率低是设计取舍，不参与门槛；门槛 75% 仅防核心模块回退。
         run: |

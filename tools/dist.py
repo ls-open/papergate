@@ -5,7 +5,6 @@
     python3 tools/dist.py                    # 导出到 dist/<VERSION>/
     python3 tools/dist.py --out <目录>       # 指定输出目录（须不存在或为空）
     python3 tools/dist.py --with-tests       # 带上 tests/（fixtures 脱敏前会被脱敏检查拦下）
-    python3 tools/dist.py --exclude <路径>   # 按开源边界排除模块，可重复
     python3 tools/dist.py --dry-run          # 只列将复制的文件，不落盘
     python3 tools/dist.py --no-verify        # 跳过自检与冒烟（只做导出与脱敏）
 
@@ -84,7 +83,7 @@ def _tracked_files() -> list[Path] | None:
     return [Path(p) for p in res.stdout.split("\0") if p]
 
 
-def _iter_sources(root: Path, rel: str, excludes: list[str], tracked: list[Path] | None = None):
+def _iter_sources(root: Path, rel: str, tracked: list[Path] | None = None):
     """产出要复制的文件（源绝对路径, 相对路径）。rel 不存在时由调用方提示。"""
     src = root / rel
     if not src.exists():
@@ -96,7 +95,7 @@ def _iter_sources(root: Path, rel: str, excludes: list[str], tracked: list[Path]
         for relative in sorted(tracked):
             if not _under(relative, rel):
                 continue
-            if _is_junk(relative.name) or any(_under(relative, e) for e in excludes):
+            if _is_junk(relative.name):
                 continue
             yield root / relative, relative
         return
@@ -108,8 +107,6 @@ def _iter_sources(root: Path, rel: str, excludes: list[str], tracked: list[Path]
                 continue
             absolute = cur_path / fname
             relative = absolute.relative_to(root)
-            if any(_under(relative, e) for e in excludes):
-                continue
             yield absolute, relative
 
 
@@ -119,7 +116,7 @@ def _under(rel: Path, prefix: str) -> bool:
     return r == p or r.startswith(p + "/")
 
 
-def export(out: Path, with_tests: bool, excludes: list[str], dry_run: bool) -> list[Path]:
+def export(out: Path, with_tests: bool, dry_run: bool) -> list[Path]:
     entries = list(INCLUDE)
     if with_tests:
         entries += WITH_TESTS
@@ -129,7 +126,7 @@ def export(out: Path, with_tests: bool, excludes: list[str], dry_run: bool) -> l
         if not (KIT_ROOT / rel).exists():
             print(f" ⚠ 白名单条目不存在，跳过: {rel}")
             continue
-        for src, relative in _iter_sources(KIT_ROOT, rel, excludes, tracked):
+        for src, relative in _iter_sources(KIT_ROOT, rel, tracked):
             if relative not in copied:  # 显式单文件与所在目录同时登记时只算一次
                 copied.append(relative)
             if not dry_run:
@@ -242,9 +239,7 @@ def main() -> int:
         epilog="工序与取舍见本文件顶部 docstring。",
     )
     ap.add_argument("--out", help="输出目录（默认 dist/<VERSION>，已存在且非空时需 --force）")
-    ap.add_argument("--with-tests", action="store_true", help="带上 tests/（fixtures 脱敏前必被拦下）")
-    ap.add_argument("--exclude", action="append", default=[], metavar="路径",
-                    help="排除某个模块路径（相对框架根，可重复）")
+    ap.add_argument("--with-tests", action="store_true", help="带上 tests/（默认只发框架本体）")
     ap.add_argument("--dry-run", action="store_true", help="只列出将复制的文件")
     ap.add_argument("--no-verify", action="store_true", help="跳过自检与冒烟")
     ap.add_argument("--force", action="store_true", help="输出目录非空时先清空")
@@ -257,8 +252,6 @@ def main() -> int:
     dirty = _dirty_files()
     if dirty:
         print(f" ⚠ 工作区有 {len(dirty)} 项未提交改动——导出的是工作树而非已提交状态")
-    if args.exclude:
-        print(f" 排除: {', '.join(args.exclude)}")
 
     if not args.dry_run:
         if out.exists() and any(out.iterdir()):
@@ -269,7 +262,7 @@ def main() -> int:
         out.mkdir(parents=True, exist_ok=True)
 
     print("\n[1/4] 白名单导出")
-    copied = export(out, args.with_tests, args.exclude, args.dry_run)
+    copied = export(out, args.with_tests, args.dry_run)
     print(f"  {'将复制' if args.dry_run else '已复制'} {len(copied)} 个文件 → {out}")
     if not args.with_tests:
         print("  注：未包含 tests/（发布产物只要框架本体）；需要时加 --with-tests")
@@ -318,7 +311,7 @@ def main() -> int:
     meta = cff_text + (out / "pyproject.toml").read_text(encoding="utf-8") if (out / "pyproject.toml").exists() else cff_text
     if "github.com/OWNER" in meta:
         pending.append("仓库地址（OWNER 占位）")
-    pending += ["开源边界（--exclude）", "README 面向新用户的可读性"]
+    pending += ["README 面向新用户的可读性"]
     print("上线前仍需人工确认：" + "、".join(pending) + "。")
     return 0
 

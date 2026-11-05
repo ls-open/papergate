@@ -366,9 +366,6 @@ def create_new_project(name: str):
     cfg_content = cfg_content.replace("path = ../papergate", f"path = {kit_rel}")
     cfg_path.write_text(cfg_content, encoding="utf-8")
 
-    # 项目级 AGENTS.md 不再保留：导航只放工作区根一份（避免两份路由互相漂移）
-    (project_path / "AGENTS.md").unlink(missing_ok=True)
-
     # references.bib 由 Git 纳入版本控制跟踪保护，无需施加单机物理锁
 
     # 3. git 集成
