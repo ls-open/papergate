@@ -15,7 +15,6 @@ from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).parent.resolve()
 TOOLS_DIR = _SCRIPT_DIR / "tools"
-SKILLS_DIR = _SCRIPT_DIR / "skills"
 TEMPLATE_DIR = _SCRIPT_DIR / "template"
 VERSION_FILE = _SCRIPT_DIR / "VERSION"
 
@@ -56,7 +55,7 @@ from lib_config import (  # noqa: E402
 )
 from lib_log import configure_logging  # noqa: E402
 import lib_manifest  # noqa: E402
-from skill_loader import load_skills  # noqa: E402
+from skill_loader import load_skills, skill_roots  # noqa: E402
 
 COMMANDS = {
     "check": TOOLS_DIR / "check.py",
@@ -69,19 +68,9 @@ COMMANDS = {
 # 技能契约见 skills/README.md。
 
 
-def _skill_roots() -> list[tuple[Path, str]]:
-    """技能目录：框架自带 + 项目本地（项目本地同名覆盖框架）。"""
-    roots: list[tuple[Path, str]] = [(SKILLS_DIR, "framework")]
-    project_root = find_project_root(Path.cwd())
-    if project_root is not None:
-        local = project_root / "skills"
-        if local.is_dir():
-            roots.append((local, "project"))
-    return roots
-
-
 def _skill_report():
-    return load_skills(_skill_roots())
+    """技能目录的单一实现来自 skill_loader.skill_roots（与 check.py 共用）。"""
+    return load_skills(skill_roots(find_project_root(Path.cwd())))
 
 
 def _all_commands(report) -> dict[str, Path]:

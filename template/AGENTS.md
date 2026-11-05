@@ -93,18 +93,17 @@ __PAPERGATE_PROJECT_CMD__ skills <name> --full   # 打印完整 SKILL.md
 
 ## §六 技能产出边界（重要）
 
-技能会产出文件，但正式目录有硬性规则。默认分三层：
+技能会产出文件，但产物落在哪由目录契约定，技能只能认领、不能开辟。
 
 | 位置 | 放什么 | 是否进 git |
 |:--|:--|:--|
 | `tmp/skills/<技能名>/` | 技能默认输出；随便写 | 否（`tmp/` 已忽略） |
-| `write/`、`references/`、`results/` | 正式产物，只放**提升过**的内容 | 是 |
-| `data/` | 原始数据，只增不改 | 是 |
+| `write/`、`references/`、`results/`、`review/` | 正式产物，只放**提升过**的内容 | 是 |
 
 规则：
 
 1. 外来技能默认只能写 `tmp/skills/<技能名>/`；
-2. 只有 `manifest.yaml` 里声明了 `writes:` 的受信任技能，才允许直接写正式目录；
+2. `manifest.yaml` 的 `writes:` 只能声明上面那几个产物区，越界直接加载失败；
 3. 要让技能产物进入正式目录，必须**显式提升**：复核 → 复制到 `write/` 或 `results/` → 跑 `check`；
 4. 不要为了省事让技能直接写 `write/paper.md`、`results/manifest.json` 这类关键文件。
 

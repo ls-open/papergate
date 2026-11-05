@@ -45,7 +45,7 @@ INCLUDE = [
     ".gitignore", ".github",
     "tools", "template", "standards", "framework", "skills",
     "examples",
-    # tests/ 默认不随产物走（fixtures 含真实文献），但 README 链接了这份说明，
+    # tests/ 默认不随产物走（发布产物只要框架本体），但 README 链接了这份说明，
     # 单独带上它，避免发布产物里出现死链。
     "tests/README.md",
 ]
@@ -68,13 +68,37 @@ def _is_junk(name: str) -> bool:
     return name in NEVER_COPY_NAMES or name.endswith(NEVER_COPY_SUFFIX) or name in NEVER_COPY_FILES
 
 
-def _iter_sources(root: Path, rel: str, excludes: list[str]):
+def _tracked_files() -> list[Path] | None:
+    """git 跟踪的文件（相对仓库根的 posix 路径）；非 git 仓库或 git 不可用返回 None。
+
+    产物只认 git 跟踪的内容：`.gitignore` 说的是「本地生成物不入库」，
+    只按目录遍历的话那批文件照样会被复制出去（demo 的自检结果 json 就是这么漏的）。
+    """
+    try:
+        res = subprocess.run(["git", "ls-files", "-z"], cwd=str(KIT_ROOT),
+                             capture_output=True, text=True)
+    except OSError:
+        return None
+    if res.returncode != 0:
+        return None
+    return [Path(p) for p in res.stdout.split("\0") if p]
+
+
+def _iter_sources(root: Path, rel: str, excludes: list[str], tracked: list[Path] | None = None):
     """产出要复制的文件（源绝对路径, 相对路径）。rel 不存在时由调用方提示。"""
     src = root / rel
     if not src.exists():
         return
     if src.is_file():
         yield src, Path(rel)
+        return
+    if tracked is not None:
+        for relative in sorted(tracked):
+            if not _under(relative, rel):
+                continue
+            if _is_junk(relative.name) or any(_under(relative, e) for e in excludes):
+                continue
+            yield root / relative, relative
         return
     for cur, dirnames, filenames in os.walk(src):
         cur_path = Path(cur)
@@ -99,12 +123,13 @@ def export(out: Path, with_tests: bool, excludes: list[str], dry_run: bool) -> l
     entries = list(INCLUDE)
     if with_tests:
         entries += WITH_TESTS
+    tracked = _tracked_files()
     copied: list[Path] = []
     for rel in entries:
         if not (KIT_ROOT / rel).exists():
             print(f" ⚠ 白名单条目不存在，跳过: {rel}")
             continue
-        for src, relative in _iter_sources(KIT_ROOT, rel, excludes):
+        for src, relative in _iter_sources(KIT_ROOT, rel, excludes, tracked):
             if relative not in copied:  # 显式单文件与所在目录同时登记时只算一次
                 copied.append(relative)
             if not dry_run:
@@ -247,7 +272,7 @@ def main() -> int:
     copied = export(out, args.with_tests, args.exclude, args.dry_run)
     print(f"  {'将复制' if args.dry_run else '已复制'} {len(copied)} 个文件 → {out}")
     if not args.with_tests:
-        print("  注：未包含 tests/（当前 fixtures 含真实文献全文；脱敏后可用 --with-tests）")
+        print("  注：未包含 tests/（发布产物只要框架本体）；需要时加 --with-tests")
     if args.dry_run:
         for rel in copied[:40]:
             print(f"    {rel}")

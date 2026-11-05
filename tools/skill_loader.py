@@ -363,6 +363,20 @@ def load_entry_function(entry: Path, function: str):
     return func
 
 
+def skill_roots(project_root: Path | None = None) -> list[tuple[Path | str, str]]:
+    """技能目录：框架自带 + 项目本地（后者同名覆盖前者）。单一实现。
+
+    `papergate.py` 与 `check.py` 都从这里取——两处各写一遍的话，
+    改一处必漏另一处，而它们解析出的框架目录本来同值。
+    """
+    roots: list[tuple[Path | str, str]] = [(Path(__file__).resolve().parent.parent / "skills", "framework")]
+    if project_root is not None:
+        local = Path(project_root) / "skills"
+        if local.is_dir():
+            roots.append((local, "project"))
+    return roots
+
+
 def load_skills(roots: list[tuple[Path | str, str]] | None = None) -> SkillReport:
     """扫描技能目录。`roots` 是 (目录, 来源标签) 列表，后者覆盖前者。"""
     report = SkillReport()

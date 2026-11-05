@@ -48,8 +48,14 @@ CHECK_MODULE = """
 
 
 def _isolate_roots(monkeypatch, root: Path) -> None:
-    """把技能扫描根指向临时目录，避免读到仓库自带的 skills/。"""
-    monkeypatch.setattr(check, "_skill_roots", lambda project_root: [(root, "framework")])
+    """把技能扫描根指向临时目录，避免读到仓库自带的 skills/。
+
+    打桩的是 `skill_loader.skill_roots`（唯一来源），check 与 papergate 都从它取。
+    """
+    import skill_loader
+
+    monkeypatch.setattr(skill_loader, "skill_roots",
+                        lambda project_root=None: [(root, "framework")])
 
 
 # ---- 解析 ----

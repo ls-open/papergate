@@ -16,6 +16,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from _support import PSEUDO_CHECK_KEYS  # noqa: E402
+
 _PAPERGATE = Path(__file__).resolve().parent.parent
 _CHECK_PY = _PAPERGATE / "tools" / "check.py"
 _DEMO_FIXTURE = _PAPERGATE / "tests" / "fixtures" / "demo_project"
@@ -237,9 +239,9 @@ class TestCheckAllIdempotency(unittest.TestCase):
             # fixture 自身可能带 error（退出码 1），关键是不崩溃且 stdout 是合法 JSON
             self.assertIn(r.returncode, (0, 1), f"check --all 不应崩溃: {r.stderr}")
             data = json.loads(r.stdout)
-            keys = [c["check_key"] for c in data["checks"]]
-            self.assertEqual(len(keys), len(check.CHECK_REGISTRY),
-                             f"--all 应跑出全部 {len(check.CHECK_REGISTRY)} 项检查")
+            keys = {c["check_key"] for c in data["checks"]} - PSEUDO_CHECK_KEYS
+            self.assertEqual(keys, set(check.CHECK_REGISTRY),
+                             f"--all 应跑出全部注册项，实际 {len(keys)} 项")
             self.assertEqual(set(keys), set(check.CHECK_REGISTRY),
                              "--all 枚举的 check_key 应与 CHECK_REGISTRY 完全一致")
         finally:

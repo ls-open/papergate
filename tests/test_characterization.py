@@ -15,6 +15,8 @@ import sys
 import unittest
 from pathlib import Path
 
+from _support import PSEUDO_CHECK_KEYS  # noqa: E402
+
 _PAPERGATE = Path(__file__).resolve().parent.parent
 _TOOLS = _PAPERGATE / "tools"
 _CHECK_PY = _TOOLS / "check.py"
@@ -49,8 +51,9 @@ class TestCheckCharacterization(unittest.TestCase):
         data = _run_check_all(FIXTURE)
         for key in ("checks", "errors", "warnings", "action_items"):
             self.assertIn(key, data, f"diagnostics 缺字段 {key}")
-        self.assertEqual(len(data["checks"]), len(_chk.CHECK_REGISTRY),
-                         f"应运行全部 {len(_chk.CHECK_REGISTRY)} 项检查，实际 {len(data['checks'])}")
+        keys = {c.get("check_key") for c in data["checks"]} - PSEUDO_CHECK_KEYS
+        self.assertEqual(set(_chk.CHECK_REGISTRY), keys,
+                         f"--all 应跑出全部注册项，实际 {len(keys)} 项")
         for c in data["checks"]:
             self.assertTrue(c.get("check_key"), "每项检查应有稳定 check_key")
             self.assertTrue(c.get("name"), "每项检查应有 name")

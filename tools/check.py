@@ -231,16 +231,6 @@ FRAMEWORK_CHECK_KEYS = (
 # 未安装技能 = 该能力「未启用」，绝不静默变成「通过」。
 
 
-def _skill_roots(project_root: Path | None) -> list[tuple[Path | str, str]]:
-    """框架自带技能 + 项目本地技能（后者同名覆盖前者）。"""
-    roots: list[tuple[Path | str, str]] = [(Path(__file__).resolve().parent.parent / "skills", "framework")]
-    if project_root is not None:
-        local = project_root / "skills"
-        if local.is_dir():
-            roots.append((local, "project"))
-    return roots
-
-
 def _load_skill_callable(check):
     """按 manifest 声明加载技能里的检查函数；返回 (函数, 错误信息)。"""
     from skill_loader import load_entry_function
@@ -260,11 +250,11 @@ def build_registry(project_root: Path | None = None):
       - errors:   技能加载/接线错误，逐条要暴露给用户——技能坏了比没装更危险，
                   因为它看起来"装好了"
     """
-    from skill_loader import load_skills
+    from skill_loader import load_skills, skill_roots
 
     registry = dict(CHECK_REGISTRY)
     errors: list[str] = []
-    report = load_skills(_skill_roots(project_root))
+    report = load_skills(skill_roots(project_root))
     errors.extend(report.errors)
     for name, (skill, check) in report.checks().items():
         if name in registry:
@@ -536,8 +526,11 @@ def main():
     # 绝不计为通过。判定取自技能 manifest 的 checks[].stage，不是写死的提示。
     # 放在门禁之前：即使写作期门禁先阻断，报告里也必须写明审查能力未启用。
     _requested_stages = current_stage if isinstance(current_stage, list) else [current_stage]
+    # `--all` 也会跑审查期检查（get_checks_for_stage 对 "all" 全匹配），
+    # 所以它同样必须报「审查能力未启用」——否则全量自检恰好漏掉这一条。
+    _runs_review = "all" in _requested_stages or "review" in _requested_stages
     _skill_stages = skill_report.stage_coverage() if skill_report is not None else set()
-    if "review" in _requested_stages and not args.check and "review" not in _skill_stages:
+    if _runs_review and not args.check and "review" not in _skill_stages:
         review_cr = CheckResult("审查能力（由技能提供）")
         review_cr.add_skipped(
             "审查能力未启用：核心不内置审查检查，审查由技能执行"

@@ -20,6 +20,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from _support import PSEUDO_CHECK_KEYS  # noqa: E402
+
 _PAPERGATE = Path(__file__).resolve().parent.parent
 _TOOLS = _PAPERGATE / "tools"
 _PAPERGATE_PY = _PAPERGATE / "papergate.py"
@@ -106,11 +108,12 @@ class TestNewJourney(unittest.TestCase):
         # 关键是不崩溃且 stdout 为合法 JSON。
         self.assertIn(r.returncode, (0, 1), f"check --all 不应崩溃: {r.stderr}")
         data = json.loads(r.stdout)
-        self.assertEqual(len(data["checks"]), len(check.CHECK_REGISTRY),
-                         f"--all 应枚举全部 {len(check.CHECK_REGISTRY)} 个检查")
-        keys = {c["check_key"] for c in data["checks"]}
+        keys = {c.get("check_key") for c in data["checks"]} - PSEUDO_CHECK_KEYS
+        self.assertEqual(set(check.CHECK_REGISTRY), keys,
+                         f"--all 应枚举全部注册项，实际 {len(keys)} 项")
+        keys = {c["check_key"] for c in data["checks"]} - PSEUDO_CHECK_KEYS
         self.assertEqual(keys, set(check.CHECK_REGISTRY.keys()),
-                         "枚举的 check_key 应与 CHECK_REGISTRY 完全一致")
+                         "枚举的 check_key（伪项除外）应与 CHECK_REGISTRY 完全一致")
 
 
 class TestVersionFlag(unittest.TestCase):

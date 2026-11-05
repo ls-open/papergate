@@ -27,6 +27,13 @@ if str(_TOOLS) not in sys.path:
 import check  # noqa: E402
 
 DEMO_FIXTURE = _PAPERGATE / "tests" / "fixtures" / "demo_project"
+
+# `--all` 的输出除注册表检查外，还会带两类「伪检查项」：
+#   review_capability  —— 审查能力未启用时的显式声明（没有技能覆盖 review 阶段才有）
+#   skill_load_errors  —— 技能声明坏了（有加载错误才有）
+# 它们不是 CHECK_REGISTRY 条目，但必须出现在输出里（否则「未启用」就沉默了），
+# 所以「跑了几项」的计数断言要扣掉它们。
+PSEUDO_CHECK_KEYS = frozenset({"review_capability", "skill_load_errors"})
 _CREATED_TMP_DIRS: set[Path] = set()
 
 

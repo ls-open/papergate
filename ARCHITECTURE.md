@@ -148,8 +148,9 @@ CHECK_REGISTRY = {
 
 - 每个条目 = `(检查函数, 阶段归属)`
 - 阶段归属可为单个阶段字符串或元组（多阶段运行）
-- `CHECK_REGISTRY` 就是核心唯一注册表；不再有外部 checks 合并
-- 审查阶段核心不注册任何专属检查：该阶段显示「审查由技能提供」，不产出通过结论
+- 注册表 = 核心 `CHECK_REGISTRY` + 技能 `manifest.checks` 的运行时合并
+  （`build_registry()`）。核心优先：与核心同名的技能检查一律拒绝并报错
+- 审查阶段核心不注册任何专属检查：没有已装技能覆盖该阶段时显示「未启用」，不产出通过结论
 - `--fix` 修复分派在 `check_autofix.py` 的 `_FIX_HANDLERS` 表（check_key → 修复函数）
 
 ### 3.2 阶段感知与严重性机制
@@ -250,7 +251,7 @@ write/export/ ─────────→ check_submission（投稿包）
 | 解析 frontmatter | `lib_common.split_frontmatter` / `parse_frontmatter_dict` / `load_frontmatter` |
 | 解析 manifest（results/manifest.json） | `lib_manifest.load_manifest` / `load_table_map`（缺失/损坏安全回退）|
 | stale 判定 / 论文表反查 | `lib_manifest.stale_deps_for`（analysis 条目过期）/ `tables_for_output`（table_map 按 basename）|
-| "无法判定"的记录与展示 | `lib_manifest.env_unverifiable_for`（能否核实）/ `CheckResult.add_unverifiable`（只提示不阻塞；与"已核查无问题"分开）|
+| "无法判定"的记录与展示 | `CheckResult.add_unverifiable`（只提示不阻塞；与"已核查无问题"分开）|
 | "未启用"的记录与展示 | `CheckResult.add_skipped`（能力块关着、本次没跑；不计通过、不进 errors；报告单列 `未启用`）|
 | 解析 bib | `lib_common.parse_bib_entries` / `parse_bib_full` / `parse_bib_keys` / `bib_citekey_lines` |
 | 切 References | `lib_common.split_at_references` |

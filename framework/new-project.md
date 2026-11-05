@@ -25,11 +25,14 @@ cd <项目名> && python3 ../papergate/papergate.py status
 5. 依次重跑全部脚本确认输出，再跑 `check`，0 错误才算迁完。
 
 
-## 三、文献库（装了 literature-manager 技能时）
+## 三、文献库（`literature-manager` 是必备技能）
 
-不装技能可跳过本节，`[zotero]` 留空即可，文献能力会显示「未启用」。
+这一节不能跳过：写 `references.bib` 和文献笔记的就是这个技能，缺了 `check` 会报 error。
 
-装了之后，列出已有集合 → 确认选哪个 → 把 Key 与名称填入 `.papergate_config`：
+**不用 Zotero 也要走完**——把 `[zotero]` 留空并在注释里写明「本项目不走 Zotero，bib 手工维护」，
+这样 `check` 只会提示「文献库未接」，而不是当它不存在。
+
+配 Zotero 的话，列出已有集合 → 确认选哪个 → 把 Key 与名称填入 `.papergate_config`：
 
 ```ini
 [zotero]
