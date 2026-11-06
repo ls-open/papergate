@@ -19,6 +19,8 @@ md-to-word --guide                                               # 引擎的技�
 ```
 
 `--guide` 是**动手前必读**：稿件有契约、格式要求文件有封闭词表，两者都猜不出来。
+`--contract <稿件>` 会打印两册手册的路径——**学位论文要读第二册**（封面、前置件、分节页码、
+`--base-template` 只在 `manual-thesis.md` 里）。
 
 ---
 
@@ -60,7 +62,14 @@ md-to-word --guide                                               # 引擎的技�
 [0 收集需求] → [1 建投稿副本] → [2 补样式标记] → [3 写格式要求] → [4 导出] → [5 校验]
 ```
 
-**第 0 步 收集需求**：确认目标期刊/学校、语言、CSL 样式。目标方给了参考 `.docx` 时先反推：
+**第 0 步 收集需求**：确认目标期刊/学校、语言、CSL 样式。**先查模板库有没有现成的**——
+各校各刊的格式文件与样稿都收在那儿，有就下下来改，没有再从零写：
+
+```bash
+curl -s https://raw.githubusercontent.com/ls-open/md-to-word-templates/main/index.json
+```
+
+目标方给了参考 `.docx` 时反推：
 
 ```bash
 md-to-word-template 参考.docx -o 草稿.txt      # 末尾会列「需人工确认」清单，逐条核对

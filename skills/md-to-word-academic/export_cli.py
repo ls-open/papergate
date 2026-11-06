@@ -34,7 +34,6 @@ ENGINE_MIN_VERSION = (3, 0, 0)
 
 EXIT_OK = 0
 EXIT_ERROR = 1
-EXIT_USAGE = 2
 EXIT_PDF_SKIPPED = 3
 
 USAGE_BRIEF = """用法: papergate.py export <稿件.md> [-r 格式要求.txt] [-t 模板.docx] [-o 输出.docx]
