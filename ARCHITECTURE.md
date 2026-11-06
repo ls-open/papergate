@@ -7,8 +7,6 @@
 
 ## 一、总体分层
 
-PaperGate 围绕一条主链路设计：**标准定义"什么是对的" → 检查严格执行 → 技能辅助执行**。
-
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  标准层  standards/*.md（核心：writing / submission）         │
@@ -38,10 +36,7 @@ PaperGate 围绕一条主链路设计：**标准定义"什么是对的" → 检�
 
 框架按「谁依赖谁」分两层：**核心层、技能层**。
 
-- 核心层不可摘；
-- 技能层有就用、没有就不用：删掉技能目录，核心检查与状态机照跑；
-- 审查不内置：它由技能提供检查项与审计协议，没有技能覆盖 `review` 阶段时
-  `check --stage review` 显示「未启用」，不产出任何「通过」结论。
+- 核心层不可摘；技能层有就用、没有就不用：删掉技能目录，核心检查与状态机照跑。
 - 判据：**核心不在，项目开不了工；技能不在，开得了工，只是少一块能力**（见
   [`framework/philosophy.md` §三](framework/philosophy.md)）。
 
@@ -63,23 +58,11 @@ PaperGate 围绕一条主链路设计：**标准定义"什么是对的" → 检�
 | ⑦ 审查 | 可选 | 技能自带审计协议，贡献 `review` 阶段检查项与子状态判读 | 该阶段检查项消失，`check --stage review` 显示「未启用」 |
 | ⑧ 任意技能 | 可选 | 任何带 `SKILL.md` 的技能目录 | 不出现在 `skills` 列表 |
 
-**必备 ≠ 内置**：⑤⑥ 仍然住 `skills/`、仍然可被替换实现，只是不允许缺席——
-核心检查无条件读它们的产物（见 `skill_loader.REQUIRED_SKILLS`）。判据是
-「核心检查读不读它产出的东西」，不是「它重不重要」。产物位置由目录契约定义，
-技能声明 `writes` 只能认领既有产物区，不能自行开辟。
+**必备 ≠ 内置**：⑤⑥ 仍住 `skills/`、仍可被替换实现，只是不允许缺席——判据是「核心检查读不读
+它产出的东西」，不是「它重不重要」。名单与缺失行为见 [`skills/README.md` §4.4](skills/README.md)。
 
-**技能能贡献什么**（`manifest.yaml`，契约见 `skills/README.md`）
-
-| 字段 | 作用 | 缺失时 |
-|:--|:--|:--|
-| `commands` | 转发到技能脚本的子命令 | 命令不存在 |
-| `checks` | 并进 `CHECK_REGISTRY` 的检查项（`name` / `entry` / `function` / `stage`） | 该阶段没有这项检查 |
-| `status` | 补充阶段子状态（第几轮、完成到哪） | 核心只报粗阶段 |
-| `writes` | 允许写的正式目录 | 只能写 `tmp/skills/<name>/` |
-
-**合并规则**：核心优先——技能声明与核心同名的检查项一律拒绝并报错；技能之间同名先加载者占用。
-`stage` 必填（没声明阶段 = 永远选不中），入口不存在 / 模块导不进 / 函数名写错 **一律报错**，
-不静默降级（见 [`framework/philosophy.md` §四](framework/philosophy.md)）。
+**技能能贡献什么**：`commands` / `checks` / `status` / `writes` 四项，字段语义与接线规则见
+[`skills/README.md` §四](skills/README.md)。
 
 **发现机制**
 
@@ -150,7 +133,6 @@ CHECK_REGISTRY = {
 - 阶段归属可为单个阶段字符串或元组（多阶段运行）
 - 注册表 = 核心 `CHECK_REGISTRY` + 技能 `manifest.checks` 的运行时合并
   （`build_registry()`）。核心优先：与核心同名的技能检查一律拒绝并报错
-- 审查阶段核心不注册任何专属检查：没有已装技能覆盖该阶段时显示「未启用」，不产出通过结论
 - `--fix` 修复分派在 `check_autofix.py` 的 `_FIX_HANDLERS` 表（check_key → 修复函数）
 
 ### 3.2 阶段感知与严重性机制
@@ -158,7 +140,7 @@ CHECK_REGISTRY = {
 ```
 writing → citation → review → submission → revision
 ```
-（注：CHECK_REGISTRY 的自检分阶段为 `basic` / `writing` / `citation` / `review` / `submission` / `framework`；`framework` 只在 `check --framework` 下运行，判的是框架自身完整性（standards 齐备、SKILL.md 引用有效等），不进论文项目的默认面。`review` 阶段没有专属检查，只复用 writing 的 `paper_title_hierarchy`；审查能力本身由技能执行，核心只保留阶段判定与写作/引用门禁。修订期作为全流程业务阶段，运行自检时映射至 `writing` 阶段）。
+（注：CHECK_REGISTRY 的自检分阶段为 `basic` / `writing` / `citation` / `review` / `submission` / `framework`；`framework` 只在 `check --framework` 下运行，见 §3.5。`review` 阶段核心不注册任何专属检查，只复用 writing 的 `paper_title_hierarchy`。修订期运行自检时映射至 `writing` 阶段）。
 
 - 阶段判定：`lib_config.detect_status`，按优先级从上到下取第一个命中的分支：
   1. **准备期**——正文区一字未写，且没有审查会话、修订目录、投稿包、投稿标签；
@@ -189,8 +171,7 @@ action_items: [{error, severity, priority, instruction, action:{type, target}}]
 ```
 
 - 单仓库形态：无 submit/ 分支，投稿动作 = 打 `<项目名>-v<主>.<次>-<目标>-submitted` 标签
-- 源稿 `paper.md` 始终跟踪（唯一内容源），L2 语法只加在投稿副本
-- L2 语法（`%% 样式行`、csl:）只加在投稿副本
+- 源稿 `paper.md` 始终跟踪（唯一内容源）；L2 语法（`%% 样式行`、csl:）只加在投稿副本
 - 查 L2 语法（`%% 样式行` / 旧 `:::`）的 `paper_forbidden_syntax` 只在 writing 阶段注册 → 投稿期不运行，不碰投稿副本
 - 投稿检查（`check_header_wrap`/`check_submission_manuscript`）专门查投稿副本
 
@@ -267,7 +248,7 @@ write/export/ ─────────→ check_submission（投稿包）
 
 ### 新增检查项详细步骤
 
-1. **定义函数**：按阶段归属在 `tools/check_basic.py` / `tools/check_writing/`（领域包）/ `check_citation.py` / `check_submission.py` 中定义（首参 `ctx`，见 §一「架构边界原则」）。审查这类**能力块**不放进核心——同样的函数写在技能目录里，由 `manifest.yaml` 的 `checks:` 接线，执行链路完全一致：
+1. **定义函数**：按阶段归属在 `tools/check_basic.py` / `tools/check_writing/`（领域包）/ `check_citation.py` / `check_submission.py` 中定义（首参 `ctx`，见 §一「架构边界原则」）：
 
    ```python
    def check_my_rule(ctx, ) -> CheckResult:
@@ -276,18 +257,14 @@ write/export/ ─────────→ check_submission（投稿包）
        return cr
    ```
 
-2. **注册**：在 `tools/check.py` 的 `CHECK_REGISTRY` 加一行——单阶段 `CHECK_REGISTRY["my_rule"] = (check_my_rule, "submission")`；多阶段共享用 tuple `("writing", "submission")`。共享基础设施（`CheckResult`、`stage_severity`）在 `check_shared.py`，**不含**注册条目。
+2. **注册**：在 `tools/check.py` 的 `CHECK_REGISTRY` 加一行——单阶段 `CHECK_REGISTRY["my_rule"] = (check_my_rule, "submission")`；多阶段共享用 tuple `("writing", "submission")`。
 3. **写 GOOD/BAD 对测试**：参考 `tests/test_checks_writing.py` 模式；正反例覆盖"通过"与"触发"两条路径。
-4. **不维护计数**：检查项数量／阶段计数不写入任何文档（权威清单由 `papergate.py check --list` 实时生成，见 §3.1）。
 
-> **设计约束（高频易错类别沉淀）**：
+> **设计约束**：
 > 1. **中文适配**：凡做文本模式匹配的检查必须显式声明 zh/en 行为，按 `paper_lang(ctx)` 双语设计；
 > 2. **输入清洗约定**：对 paper.md 做内容统计/匹配前先 `split_frontmatter` +
 >    `split_at_references`（排除 frontmatter 与引用区干扰），正文写法类检查过 `mask_code_fences` 排除代码块；
 > 3. **docstring 即契约**：检查项行为变动必须同步更新 docstring 与文档，确保行为契约一致。
-
-
-> 检查项是资产也是负债：新增按"痛点即检查"，清退按"退出标准"（五问见本节开头）。
 
 ---
 

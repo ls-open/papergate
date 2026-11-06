@@ -17,7 +17,7 @@ case "$subject" in
   Merge*|Revert*|Initial*) exit 0 ;;
 esac
 
-# 合法 domain（9个大类，与 AGENTS.md §五 同步）
+# 合法 domain（9个大类，与 AGENTS.md §四 同步）
 DOMAINS='写作|审查|投稿|文献|数据|框架|工具|标准|技能'
 
 # 1. 检查基本格式：[<id>] <domain>/<type>：<summary>

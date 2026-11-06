@@ -3,7 +3,7 @@
 > 本文件是**工作区级导航的唯一来源**：Agent 从工作区根打开时自动加载。
 > 框架在 `__PAPERGATE_DIR__/`，不进工作区 git；每篇论文是下面的一个项目目录。
 >
-> **不要在项目里再放第二份 AGENTS.md。** 导航只有这一份，避免两份互相漂移。
+> **不要在项目里再放第二份 AGENTS.md。** 导航只有这一份。
 
 ---
 
@@ -72,8 +72,6 @@ __PAPERGATE_PROJECT_CMD__ check --stage writing
 git log --oneline -5
 ```
 
-阶段/状态以 `status` 为准，技能以 `skills` 为准，不做手工推断。
-
 ---
 
 ## §五 技能发现
@@ -91,7 +89,7 @@ __PAPERGATE_PROJECT_CMD__ skills <name> --full   # 打印完整 SKILL.md
 
 ---
 
-## §六 技能产出边界（重要）
+## §六 技能产出边界
 
 技能会产出文件，但产物落在哪由目录契约定，技能只能认领、不能开辟。
 
@@ -104,8 +102,7 @@ __PAPERGATE_PROJECT_CMD__ skills <name> --full   # 打印完整 SKILL.md
 
 1. 外来技能默认只能写 `tmp/skills/<技能名>/`；
 2. `manifest.yaml` 的 `writes:` 只能声明上面那几个产物区，越界直接加载失败；
-3. 要让技能产物进入正式目录，必须**显式提升**：复核 → 复制到 `write/` 或 `results/` → 跑 `check`；
-4. 不要为了省事让技能直接写 `write/paper.md`、`results/manifest.json` 这类关键文件。
+3. 要让技能产物进入正式目录，必须**显式提升**：复核 → 复制到 `write/` 或 `results/` → 跑 `check`。
 
 ---
 

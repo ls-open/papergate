@@ -34,7 +34,7 @@ tests/
 ## 覆盖与 CI
 
 - **CI**：`.github/workflows/ci.yml`，push / pull_request 自动跑 pytest（Python 3.11 / 3.13 矩阵）
-- **提交钩子**：`tools/git-hooks/pre-commit` 做门卫（大文件/密钥/冲突标记），暂存内容涉及框架代码时另跑 ruff + mypy（与 CI lint job 同命令）；`pre-push` 跑全量 pytest——本仓库默认无远端，所以它不会触发；配了远端之后 push 就会跑全量测试，没配远端时手动 `python3 -m pytest -q`
+- **提交钩子**：`tools/git-hooks/pre-commit` 做门卫（大文件/密钥/冲突标记），暂存内容涉及框架代码时另跑 ruff + mypy（与 CI lint job 同命令）；`pre-push` 跑全量 pytest
 
 ## 加新测试的规范
 

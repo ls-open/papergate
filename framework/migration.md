@@ -11,7 +11,7 @@
 
 ```
 <工作区>/
-├── AGENT.md               ← 工作区调度入口（已存在）
+├── AGENTS.md              ← 工作区调度入口（已存在）
 └── papergate/              ← 框架（framework/standards/tools/skills/template，已存在）
 ```
 
@@ -28,9 +28,7 @@
    python3 papergate/papergate.py new <项目名>
    cd <项目名>
    ```
-   > 手抄 `cp -r ../papergate/template/* .` 会漏掉 `hooks install`、
-   > 把 `__pycache__` 一并带入，且 `sed -i ''` 只在 macOS 可用——故本文不再保留该路径。
-2. **配置 Zotero 集合**：按 `framework/new-project.md` 的「Zotero 集合配置」指引，将集合 Key 填入 `.papergate_config`。
+2. **配置 Zotero 集合**：按 `framework/new-project.md` §三（文献库）的指引，将集合 Key 填入 `.papergate_config`。
 3. **移入原始数据**：只移 `data/` 下的原始数据（CSV/JSON），不要移中间产物。
 4. **移入脚本**：
    - 检查每个脚本是否能跑通；
@@ -48,6 +46,5 @@
 
 ## 核心原则
 
-- 建好空架子后，只移需要的，不试图兼容旧的
 - 改旧脚本不如按新标准重写，成本可能更低
-- AGENT.md 和 papergate/ 是工作区共享资源，不要复制到项目目录
+- AGENTS.md 和 papergate/ 是工作区共享资源，不要复制到项目目录

@@ -6,8 +6,7 @@ compatibility: "全平台（无 macOS 专属依赖）。Zotero 同步需在技�
 
 # Literature Manager（文献管理技能）
 
-Zotero 线上文献库为单一事实源（SSOT），`.bib` 为 Git 跟踪的编译产物（防篡改靠版本控制，不靠单机文件锁）。所有文献的采集、增删均在 Zotero 中操作，通过 `papergate.py lit zotero pull` 单向同步到项目。
-文献笔记的 Frontmatter 格式定义、多模态 PDF 提取精修标准参见同目录 [`note-guide.md`](./note-guide.md)。
+Zotero 线上文献库为单一事实源（SSOT），`.bib` 为 Git 跟踪的编译产物。所有文献的采集、增删均在 Zotero 中操作，通过 `papergate.py lit zotero pull` 单向同步到项目。
 
 > **统一入口**：`python3 ../papergate/papergate.py lit` (或 `literature`)
 > **前置依赖**：Zotero 读写需要凭据。推荐放到用户级配置（不跟技能目录走）：
@@ -18,9 +17,8 @@ Zotero 线上文献库为单一事实源（SSOT），`.bib` 为 Git 跟踪的编
 ---
 
 ## 工具使用规范：优先使用内置提取管线
-PDF 文献解析具有复杂的学术排版特征（双栏布局、页眉页脚干扰、公式表格）。
 文献笔记提取与生成时，走内置的 `pdf2text.py` 文本层提取 + AI 直读 PDF 这两条路，并遵守同目录 `note-guide.md` 的精修规范。
-**不设渲染图片或 OCR 环节**——模型直读本身已覆盖这两者，且少一层依赖。
+**不设渲染图片或 OCR 环节**——模型直读已覆盖这两者。
 
 ---
 
@@ -50,13 +48,12 @@ python3 ../papergate/papergate.py lit zotero delete --key <KEY> --purge
 > 而本工作区多个论文项目**共用一个 Zotero 库**。**只想把某篇移出本项目集合，用
 > `collections remove`，不要用 `delete`**；执行前先确认该条目不再被任何项目需要。
 > ⚠ **`delete` 之后本地笔记/PDF 默认保留**（只提示不删）：线上条目缺省只是移入
-> 回收站、可恢复（`--purge` 才是永久删除），本地文件删掉没有这层兜底，而笔记是
-> 逐篇精修的高成本产物。确认确实不再
-> 需要时，加 `--clean-local` 才会连带删除
+> 回收站、可恢复（`--purge` 才是永久删除），本地文件删掉没有这层兜底。
+> 确认不再需要时，加 `--clean-local` 才会连带删除
 > `references/notes/<citekey>.md` 与 `references/pdfs/<citekey>.pdf`。
 > 命名约定：面向用户的接口统一用 `citekey`；`citationKey` 仅指 Zotero 7 官方 API 字段。
 > citekey/DOI 定位走项目集合本地比对，不依赖搜索 API 对这些字段的全文索引；
-> 删除后需 `pull` 同步本地 bib（不想留孤儿笔记/PDF 就加 `--clean-local`，或手动删）。
+> 删除后需 `pull` 同步本地 bib。
 
 ### 3. 添加文献（人机协作）
 - **AI 负责前置查重与给入口**：运行 `papergate.py lit zotero search --query "<关键词>"` 确认未收录后，提供 DOI/官方链接；
@@ -73,8 +70,8 @@ python3 ../papergate/papergate.py lit zotero import-pdf
 
 ## 二、 建证据卡的标准流程
 
-**先判断要不要建卡**（见 [`note-guide.md`](./note-guide.md) §〇）——摘要够支撑就不建，
-建了也只是负担。需要正文细节时才走下面 4 步：
+**先判断要不要建卡**（见 [`note-guide.md`](./note-guide.md) §〇）——摘要够支撑就不建。
+需要正文细节时才走下面 4 步：
 
 | # | 步骤 | 做什么 |
 |:--:|:--|:--|

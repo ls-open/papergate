@@ -16,14 +16,7 @@ cd <项目名> && python3 ../papergate/papergate.py status
 
 ## 二、把已有项目搬进来
 
-原则是**先建空架子，再往里搬，不在原结构上修补**：
-
-1. `papergate.py new <项目名>` 建骨架（同上）；
-2. 只搬 `data/` 下的原始数据（CSV / JSON），不搬中间产物；
-3. 搬脚本时，把硬编码路径改成 `from config import XXX_DIR`，并补 docstring（格式见 `standards/writing/data-flow.md`）；
-4. 搬正文到 `write/paper.md`；`write/references.bib` **不搬**，由文献技能从 Zotero 重新拉取入库；
-5. 依次重跑全部脚本确认输出，再跑 `check`，0 错误才算迁完。
-
+原则是**先建空架子，再往里搬，不在原结构上修补**。逐项搬运与验证步骤见 `framework/migration.md`。
 
 ## 三、文献库（`literature-manager` 是必备技能）
 
@@ -53,6 +46,5 @@ primary_language = en # en（默认）| zh
 
 ## 五、几条不变量
 
-- `AGENTS.md` 每个工作区**只有一份**，放工作区根；不要复制进项目目录。
 - `papergate/` 是共享资源，不复制。
 - 先写研究方案（`write/research-plan.md`），再动正文。
