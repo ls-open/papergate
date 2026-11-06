@@ -30,19 +30,7 @@
 
 ---
 
-## §二 第一次上手
-
-```bash
-# 在工作区根
-__PAPERGATE_CMD__ init                 # 生成本文件 + .gitignore + git 仓库
-__PAPERGATE_CMD__ new paper-a          # 创建第一个论文项目
-cd paper-a
-__PAPERGATE_PROJECT_CMD__ status       # 看阶段与待办
-```
-
----
-
-## §三 文档导航（按阶段读）
+## §二 文档导航（按阶段读）
 
 阶段由 `status` 判定，无需手工推断。文档相对 `__PAPERGATE_DIR__/`。
 
@@ -63,50 +51,24 @@ __PAPERGATE_PROJECT_CMD__ status       # 看阶段与待办
 
 ---
 
-## §四 新会话怎么了解现状
+## §三 新会话怎么了解现状
+
+**不自动执行任何启动序列**，需要了解现状时按需跑。首次建项目时前两步各跑一次。
 
 ```bash
+__PAPERGATE_CMD__ new paper-a           # 首次：创建论文项目
+cd paper-a
 __PAPERGATE_PROJECT_CMD__ skills        # 有哪些技能可用、各自能做什么
 __PAPERGATE_PROJECT_CMD__ status        # 当前项目阶段 / git / 文献 / 上次自检
 __PAPERGATE_PROJECT_CMD__ check --stage writing
 git log --oneline -5
 ```
 
----
-
-## §五 技能发现
-
-技能**不在 Agent 的技能目录**，而在 `<框架>/skills/` 与 `<项目>/skills/`。
-不要假设某个技能可用，先跑：
-
-```bash
-__PAPERGATE_PROJECT_CMD__ skills                 # 列出已安装技能与命令
-__PAPERGATE_PROJECT_CMD__ skills <name>          # 看某个技能怎么用
-__PAPERGATE_PROJECT_CMD__ skills <name> --full   # 打印完整 SKILL.md
-```
-
-任何带 `SKILL.md` 的目录都能放进来；没有列出的技能就是没装。
+阶段、状态、待办以 `status` 为准；技能以 `skills` 为准，没列出来的就是没装，不要假设可用。
 
 ---
 
-## §六 技能产出边界
-
-技能会产出文件，但产物落在哪由目录契约定，技能只能认领、不能开辟。
-
-| 位置 | 放什么 | 是否进 git |
-|:--|:--|:--|
-| `tmp/skills/<技能名>/` | 技能默认输出；随便写 | 否（`tmp/` 已忽略） |
-| `write/`、`references/`、`results/`、`review/` | 正式产物，只放**提升过**的内容 | 是 |
-
-规则：
-
-1. 外来技能默认只能写 `tmp/skills/<技能名>/`；
-2. `manifest.yaml` 的 `writes:` 只能声明上面那几个产物区，越界直接加载失败；
-3. 要让技能产物进入正式目录，必须**显式提升**：复核 → 复制到 `write/` 或 `results/` → 跑 `check`。
-
----
-
-## §七 提交规范
+## §四 提交规范
 
 AI 每次改完代码或文档后及时提交。同一主题的连续小修可合并一次提交，不同主题各自提交。
 
@@ -124,7 +86,56 @@ AI 每次改完代码或文档后及时提交。同一主题的连续小修可�
 
 ---
 
-## §九 工具调用规范
+## §五 技能索引
+
+技能**不在 Agent 的技能目录**，而在 `<框架>/skills/` 与 `<项目>/skills/`。
+不要假设某个技能可用，先跑：
+
+```bash
+__PAPERGATE_PROJECT_CMD__ skills                 # 列出已安装技能与命令
+__PAPERGATE_PROJECT_CMD__ skills <name>          # 看某个技能怎么用
+__PAPERGATE_PROJECT_CMD__ skills <name> --full   # 打印完整 SKILL.md
+```
+
+任何带 `SKILL.md` 的目录都能放进来；没有列出的技能就是没装。必备技能缺失时 `check` 报 **error**，不是「未启用」——名单的唯一来源是 `tools/skill_loader.py` 的 `REQUIRED_SKILLS`。
+
+**技能产出边界**：技能会产出文件，但产物落在哪由目录契约定，技能只能认领、不能开辟。
+
+| 位置 | 放什么 | 是否进 git |
+|:--|:--|:--|
+| `tmp/skills/<技能名>/` | 技能默认输出；随便写 | 否（`tmp/` 已忽略） |
+| `write/`、`references/`、`results/`、`review/` | 正式产物，只放**提升过**的内容 | 是 |
+
+1. 外来技能默认只能写 `tmp/skills/<技能名>/`；
+2. `manifest.yaml` 的 `writes:` 只能声明上面那几个产物区，越界直接加载失败；
+3. 要让技能产物进入正式目录，必须**显式提升**：复核 → 复制到 `write/` 或 `results/` → 跑 `check`。
+
+---
+
+## §六 命令速查表
+
+项目级命令在**项目目录内**运行；工作区命令在工作区根运行。
+
+| 场景 | 命令 |
+|:-----|:------|
+| 项目状态 | `__PAPERGATE_PROJECT_CMD__ status [--json]` |
+| 工作区项目列表 | `__PAPERGATE_CMD__ list [--json]` |
+| 技能清单 | `__PAPERGATE_PROJECT_CMD__ skills` |
+| 体系自检 | `__PAPERGATE_PROJECT_CMD__ check`（全量异常见 `results/diagnostics/papergate_check.json`）|
+| 自检问题先修再进 | `check --stage writing --stage citation`（看全部）→ `--fixable` → `--fix` |
+| 审查期自检 | `check --stage review --quiet`（未装审查技能显示「未启用」）|
+| 框架自检 | `cd __PAPERGATE_DIR__ && python3 papergate.py check --framework` |
+| 检查项权威清单 | `check --list`（含技能贡献的检查项）|
+| 产物定稿留档 | `__PAPERGATE_PROJECT_CMD__ record [--all \| <产物路径>]`（封存环境与产物，豁免过期告警）|
+| 字数统计 | `__PAPERGATE_PROJECT_CMD__ wordcount [--json]` |
+| 笔记定点读取 | `__PAPERGATE_PROJECT_CMD__ note-sec [<笔记.md>] [--list \| --at <节名> \| --search <关键词>]` |
+| 导出正文为 Word | `__PAPERGATE_PROJECT_CMD__ export <稿件.md> -o <输出.docx>`（`--pdf` 出抽查件）|
+| citekey 同步 | `__PAPERGATE_PROJECT_CMD__ rename`（默认 dry-run，`--apply` 执行）|
+| 新项目 / 移除项目 | `__PAPERGATE_CMD__ new <项目名>` / `__PAPERGATE_CMD__ remove <项目名>`（默认干跑）|
+
+---
+
+## §七 工具调用规范
 
 1. **内置工具优先**：`export` / `check` 已覆盖的场景一律调用框架工具；技能提供的能力，先跑 `skills` 确认存在再调用；
 2. **不手写一次性脚本绕过**：框架工具报错或覆盖不到时，先说明原因与拟写逻辑，**取得确认后再写**；
@@ -134,7 +145,7 @@ AI 每次改完代码或文档后及时提交。同一主题的连续小修可�
 
 ---
 
-## §十 修改决策原则
+## §八 修改决策原则
 
 | 变更类型 | 处理方式 |
 |:--|:--|
@@ -144,3 +155,20 @@ AI 每次改完代码或文档后及时提交。同一主题的连续小修可�
 | 加新技能 | 建 `skills/<name>/`（或项目 `skills/`），写 `SKILL.md`，可选 `manifest.yaml` |
 | 检查规则与论文设计冲突 | 以论文为准：改标准、改检查，或明确记为例外。不要为了过检查去删内容、降要求——**严禁削足适履** |
 | 不确定的删除/重构 | 先说明影响面，取得确认再执行 |
+
+---
+
+## §九 临时文件（tmp）归属与清理
+
+`tmp/` 是临时文件收容所，不是某项目的私有物，也不是备份区。
+
+| 场景 | 放哪 |
+|:-----|:-----|
+| 项目作用域临时产物（审计报告、草稿、任务简报） | 该项目内 `tmp/` |
+| 跨项目 / 框架级临时产物 | 工作区根 `tmp/` |
+| 技能输出而未提升为正式产物的 | `tmp/skills/<技能名>/` |
+| git 备份 / bundle | **禁止进 `tmp/`**，放 `backups/` 或工作区外 |
+
+1. 所有 `tmp/` 由根 `.gitignore` 统一排除，不进版本控制；
+2. 清理是**阶段性**的，一个工作阶段结束后统一清，不把 `tmp/` 当永久存档；
+3. 不确定某文件是否临时 → 默认进对应项目 `tmp/`，不要丢在仓库根目录未跟踪。
