@@ -83,8 +83,7 @@ python3 ../papergate/papergate.py lit zotero import-pdf
 | 3 | **落证据卡** | 六块骨架 + 摘录池，规范见 `note-guide.md` §二。摘录**逐字照抄，带位置** |
 | 4 | **摘录回证** | 每条 `p.N` 摘录回 `tmp/pdf_text/<citekey>/` 对应页做归一化子串比对（`note-guide.md` §2.3）。**对不上就查清**：改写过，还是页码记错 |
 
-> ⚠ **第 4 步不是可选项。** 它填的是旧设计的洞——旧管线把全文重打了一遍，
-> 却没有任何机制核对「打出来的还是不是原文」；现在只抄几句，**每一句都核得起**。
+> ⚠ **第 4 步不是可选项。** 摘录只靠自觉就只是一份抄写，核过才算证据。
 
 ### 直读 PDF 规范（必读）
 
@@ -95,8 +94,8 @@ python3 ../papergate/papergate.py lit zotero import-pdf
 
 ### 没有 PDF 时
 
-`source_kind` 换口径，位置栏跟着换：`abstract`（摘录逐字照抄 bib 摘要，可机械核对）或
-`web`（带 URL 与抓取日期）。都没有才退 `concept_note`——那是 AI 综述，**二手**，不冒充证据。
+`source_kind` 改 `abstract` 或 `web`，位置栏跟着换（见 `note-guide.md` §2.2）；
+都没有才退 `concept_note`——那是 AI 综述，**二手**，不冒充证据。
 
 ---
 
