@@ -71,22 +71,20 @@ python3 ../papergate/papergate.py lit zotero import-pdf
 
 ---
 
-## 二、 PDF 转笔记标准管线
+## 二、 建证据卡的标准流程
 
-按 [`note-guide.md`](./note-guide.md) 场景 A 执行标准 **5** 步：
+**先判断要不要建卡**（见 [`note-guide.md`](./note-guide.md) §〇）——摘要够支撑就不建，
+建了也只是负担。需要正文细节时才走下面 4 步：
 
 | # | 步骤 | 做什么 |
 |:--:|:--|:--|
-| 1 | **文本层提取** | `python3 ../papergate/papergate.py lit pdf2text --pdf references/pdfs/<citekey>.pdf --output tmp/pdf_text/<citekey>/` |
-| 2 | **直读 PDF 补全** | 异常页、公式/表格密集页、**层级拿不准的页**——规范见下 |
-| 3 | **结构化精修** | 综合两路内容落地至 `references/notes/<citekey>.md`，规范见 `note-guide.md` §2.1 |
-| 4 | **写节摘要行** | 判据与格式见 `note-guide.md` §2.2；写完跑 `note-sec <笔记> --list`，**看末尾回执归零** |
-| 5 | **自检与抽查** | 先跑 `note-guide.md` §2.3 的机械自检（框架 `check` ＋ 提取当步的逐句／引注／数值校验），再请作者对照 PDF 翻几页抽查 |
+| 1 | **抽文本层** | `python3 ../papergate/papergate.py lit pdf2text --pdf references/pdfs/<citekey>.pdf --output tmp/pdf_text/<citekey>/` |
+| 2 | **读那几页** | 六块各自需要的信息在哪页就直读哪页（规范见下）；**不要通读全文再复述** |
+| 3 | **落证据卡** | 六块骨架 + 摘录池，规范见 `note-guide.md` §二。摘录**逐字照抄，带位置** |
+| 4 | **摘录回证** | 每条 `p.N` 摘录回 `tmp/pdf_text/<citekey>/` 对应页做归一化子串比对（`note-guide.md` §2.3）。**对不上就查清**：改写过，还是页码记错 |
 
-> ⚠ **第 4、5 步都不是可选项。**
-> 第 4 步只有刚读完文献的那个对话做起来最便宜——过几天回头补，等于为了一行字重读整篇。
-> 第 5 步是这条链路上**唯一的兜底**：机械自检只覆盖判据确定的那几类，其余靠人看。
-> 核对**本就无须逐行做**，抽查收益不低于全检。自检的判据、阈值与误报边界见 `note-guide.md` §2.3。
+> ⚠ **第 4 步不是可选项。** 它填的是旧设计的洞——旧管线把全文重打了一遍，
+> 却没有任何机制核对「打出来的还是不是原文」；现在只抄几句，**每一句都核得起**。
 
 ### 直读 PDF 规范（必读）
 
@@ -94,6 +92,11 @@ python3 ../papergate/papergate.py lit zotero import-pdf
 - **PDF 超过 10 页时 `pages` 为必填**；
 - **单次最多 20 页**，整本请按 20 页一批分批读取；
 - 文本层异常（稀疏/乱码，`pdf2text` 会告警）、双栏公式、复杂表格，一律直接读该页，**无需任何本地预处理**。
+
+### 没有 PDF 时
+
+`source_kind` 换口径，位置栏跟着换：`abstract`（摘录逐字照抄 bib 摘要，可机械核对）或
+`web`（带 URL 与抓取日期）。都没有才退 `concept_note`——那是 AI 综述，**二手**，不冒充证据。
 
 ---
 
@@ -113,7 +116,6 @@ python3 ../papergate/papergate.py lit zotero import-pdf
 | 导入 PDF 附件 | `python3 ../papergate/papergate.py lit zotero import-pdf` |
 | **库内找相关文献** | `python3 ../papergate/papergate.py lit related --terms "可复现性\|reproducibility, 数据共享\|data sharing" [--exclude k1,k2]`<br>`\|`＝同一概念的中英/同义写法（任一命中即算）；`,`＝两个概念（要求同段都出现） |
 | 搜索文献库 | `python3 ../papergate/papergate.py lit zotero search --query "<关键词>"`（`--all` 含回收站） |
-| **重算笔记词数基准** | `python3 ../papergate/papergate.py lit refresh-words [--citekey KEY ...] [--apply]`（缺省干跑。计数口径变过才需重跑，`note_word_preservation` 会提示） |
 | 条目详情 | `python3 ../papergate/papergate.py lit zotero item --key <KEY>` |
 | 修改条目字段 | `python3 ../papergate/papergate.py lit zotero update --key <KEY> --language en` |
 | 导出集合 | `python3 ../papergate/papergate.py lit zotero export --collection <集合KEY> --format bibtex --output <路径>` |

@@ -351,19 +351,6 @@ class TestNotesFrontmatter(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_bad_full_text_missing_source_words_fails(self):
-        # full_text 必填 source_words（保留率基准），缺失必须报错
-        tmp = _copy_fixture()
-        try:
-            _clear_notes(tmp)
-            note = _NOTE_GOOD.replace("source_words: 1000\n", "")
-            (tmp / "references" / "notes" / "Good2020.md").write_text(note, encoding="utf-8")
-            cr = check.check_notes_frontmatter(_ctx_for(tmp))
-            self.assertTrue(cr.error_items, "full_text 缺 source_words 必须报错")
-            self.assertTrue(any("source_words" in e["message"] for e in cr.error_items))
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
-
     def test_good_concept_note_without_source_words_passes(self):
         # concept_note（ai_summary）不需要 source_words
         tmp = _copy_fixture()
@@ -901,241 +888,6 @@ generated_by: ai_summary
 
 """ + _CONCEPT_BODY + """
 """
-class TestNoteGist(unittest.TestCase):
-    """节摘要覆盖率（note-guide.md §2.2）——单一判据 needs_gist + 覆盖率报告。"""
-
-    def _run(self, name: str, text: str):
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        (tmp / "references" / "notes" / f"{name}.md").write_text(text, encoding="utf-8")
-        return check.check_note_gist(_ctx_for(tmp))
-
-    def test_fully_annotated_passes(self):
-        cr = self._run("annotated_paper_2021", _NOTE_GIST_FULL)
-        d = cr.details[0]
-        self.assertEqual(cr.warning_items, [], f"全覆盖不应报警: {cr.warning_items}")
-        self.assertEqual(d["coverage"], 1.0)
-        self.assertEqual(d["notes_fully_covered"], 1)
-
-    def test_incomplete_reports_coverage_ratio(self):
-        """未补完报覆盖率（一行进度），不逐篇报警。"""
-        cr = self._run("half_done_2022", _NOTE_GIST_PARTIAL)
-        self.assertEqual(len(cr.warning_items), 1, f"应只出一条汇总警告: {cr.warning_items}")
-        d = cr.details[0]
-        self.assertEqual(d["sections_required"], 2)
-        self.assertEqual(d["sections_covered"], 1)
-        self.assertEqual(d["coverage"], 0.5)
-
-    def test_warning_names_the_missing_sections(self):
-        """警告须点名缺哪几节，否则只报文件名等于没给动作。"""
-        cr = self._run("half_done_2022", _NOTE_GIST_PARTIAL)
-        self.assertIn("2. Method", cr.warning_items[0]["message"])
-
-    def test_untouched_note_counts_toward_coverage(self):
-        """未带摘要的笔记无特权，同样计入覆盖率分母。"""
-        cr = self._run("legacy_paper_2019", _NOTE_GIST_LEGACY)
-        self.assertEqual(len(cr.warning_items), 1)
-        d = cr.details[0]
-        self.assertEqual(d["coverage"], 0.0)
-        self.assertEqual(d["notes_fully_covered"], 0)
-        self.assertEqual(d["notes_total"], 1)
-
-    def test_exempt_titles_not_required(self):
-        """Abstract / References 不要求节摘要——否则全库每篇都多报 2 节。"""
-        cr = self._run("annotated_paper_2021", _NOTE_GIST_FULL)
-        d = cr.details[0]
-        # 应写 2 节（1. Introduction / 1.1 Sub），豁免 Abstract 与 References
-        self.assertEqual(d["sections_required"], 2)
-
-    def test_thin_section_not_required(self):
-        """本节自身正文短于 40 词 → 不要求摘要（概括一段比摘要还短的内容没有意义）。"""
-        # 只把 1.1 Sub 的正文换短，1. Introduction 保持够长
-        parts = _NOTE_GIST_FULL.split(_BODY)
-        thin = parts[0] + _BODY + parts[1] + "太短了。" + parts[2]
-        cr = self._run("annotated_paper_2021", thin)
-        d = cr.details[0]
-        self.assertEqual(d["sections_required"], 1, "1.1 Sub 应从『应写』里消失")
-        self.assertEqual(d["coverage"], 1.0)
-
-    def test_concept_note_not_applicable(self):
-        """concept_note 不进覆盖率分母（不得被记成 0% 覆盖）。
-
-        原断言 `details[0].get("sections_required") is None` 恒真：bail-out 的
-        details 只有 {note: 无适用笔记} 这一个键，任何实现下该键都取不到。
-        """
-        cr = self._run("concept_only_2020", _NOTE_GIST_CONCEPT)
-        self.assertEqual(cr.warning_items, [], f"concept_note 不应被报覆盖率: {cr.warning_items}")
-        d = cr.details[0]
-        self.assertNotIn("coverage", d, f"concept_note 不得进入覆盖率分母: {d}")
-
-    def test_concept_note_would_count_if_full_text(self):
-        """对照组：同一份内容标 full_text 时，两节即应计入分母（coverage 0%）。
-
-        证明上一条的「不进分母」是 note_type 判据的结果，
-        而不是正文太短导致判据空转（那样这个用例对两种实现都通过）。
-        """
-        cr = self._run("concept_only_2020",
-                       _NOTE_GIST_CONCEPT.replace("note_type: concept_note",
-                                                  "note_type: full_text"))
-        d = cr.details[0]
-        self.assertEqual(d["sections_required"], 2, "两节正文均够长，应各计一节")
-        self.assertEqual(d["coverage"], 0.0)
-        self.assertEqual(len(cr.warning_items), 1, f"应报一条覆盖率警告: {cr.warning_items}")
-
-
-class TestNoteStructure(unittest.TestCase):
-    def test_chinese_note_lang_zh_passes(self):
-        # 中文文献笔记（lang: zh，正文中文章节）——中文锚点词表应识别，不误报缺锚点
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        (tmp / "references" / "notes" / "yanwei_privacy_2026.md").write_text(_CHINESE_NOTE, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        self.assertEqual(cr.error_items, [], f"完整中文笔记不应有 error: {cr.error_items}")
-        anchor_msgs = [w for w in cr.warning_items if "锚点" in w["message"]]
-        self.assertEqual(anchor_msgs, [], f"中文锚点（摘要/引言/结论）应识别: {anchor_msgs}")
-        refs_msgs = [w for w in cr.warning_items if "参考文献" in w["message"]]
-        self.assertEqual(refs_msgs, [], f"中文参考文献标题应识别: {refs_msgs}")
-
-    def test_chinese_note_no_lang_uses_project_lang(self):
-        # 笔记无 lang 字段 → fallback 到论文 primary_language（zh 项目）
-        tmp = _copy_fixture()
-        _set_project_lang(tmp, "zh")
-        _clear_notes(tmp)
-        (tmp / "references" / "notes" / "yanwei_privacy_2026.md").write_text(_CHINESE_NOTE_NO_LANG, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        anchor_msgs = [w for w in cr.warning_items if "锚点" in w["message"]]
-        self.assertEqual(anchor_msgs, [], f"zh 项目的无 lang 中文笔记不应报缺锚点: {anchor_msgs}")
-
-    def test_chinese_note_standard_headers_pass(self):
-        # 中文笔记用 note-refine 标准头（## Abstract / ## References，两种语言通用）
-        # → zh 词表应兼容，不误报缺锚点/缺参考文献（实测回归：示例项目）
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        note = _CHINESE_NOTE.replace("## 摘要", "## Abstract") \
-                            .replace("## 参考文献", "## References")
-        (tmp / "references" / "notes" / "yanwei_privacy_2026.md").write_text(note, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        anchor_msgs = [w for w in cr.warning_items if "锚点" in w["message"]]
-        self.assertEqual(anchor_msgs, [], f"标准 Abstract 头应识别为 zh 锚点: {anchor_msgs}")
-        refs_msgs = [w for w in cr.warning_items if "参考文献" in w["message"]]
-        self.assertEqual(refs_msgs, [], f"标准 References 头应识别为 zh 参考文献: {refs_msgs}")
-
-    def test_chinese_numbered_headings_recognized(self):
-        # 中文序号标题（一、引言 / （一）研究设计，CNKI 论文常见）→ 归一化后识别锚点
-        # （实测回归：示例笔记曾因「一、引言」未归一化误报缺锚点）
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        note = _CHINESE_NOTE.replace("## 引言", "## 一、引言") \
-                            .replace("## 方法", "## 二、（一）方法")
-        (tmp / "references" / "notes" / "yanwei_privacy_2026.md").write_text(note, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        anchor_msgs = [w for w in cr.warning_items if "锚点" in w["message"]]
-        self.assertEqual(anchor_msgs, [], f"中文序号标题应归一化识别锚点: {anchor_msgs}")
-
-    def test_concept_note_skipped_in_structure_check(self):
-        # concept_note（ai_summary）不要求 IMRaD/参考文献结构 → 结构检查跳过，不告警
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        note = _NOTE_GOOD.replace('note_type: "full_text"', 'note_type: "concept_note"') \
-                         .replace("## Abstract", "## 核心贡献")
-        (tmp / "references" / "notes" / "Smith2020.md").write_text(note, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        self.assertEqual(cr.warning_items, [], f"concept_note 不应被结构检查告警: {cr.warning_items}")
-
-    def test_chinese_note_missing_refs_warns(self):
-        # 中文笔记缺"参考文献"章节 → 按中文词表告警
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        note = _CHINESE_NOTE.replace("\n## 参考文献\n[1] 参考文献内容。\n", "")
-        (tmp / "references" / "notes" / "yanwei_privacy_2026.md").write_text(note, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        self.assertTrue(any("参考文献" in w["message"] for w in cr.warning_items),
-                        f"缺参考文献应告警: {cr.warning_items}")
-
-    def test_chinese_note_in_en_project_warns(self):
-        # 中文笔记在 en 项目且无 lang 字段 → 英文词表匹配不到，缺锚点告警（提示需标 lang）
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        (tmp / "references" / "notes" / "yanwei_privacy_2026.md").write_text(_CHINESE_NOTE_NO_LANG, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        self.assertTrue(any("锚点" in w["message"] for w in cr.warning_items),
-                        f"en 项目下无 lang 中文笔记应按英文词表告警: {cr.warning_items}")
-
-    def test_good_imrad_complete(self):
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        (tmp / "references" / "notes" / "Smith2020.md").write_text(_NOTE_FULL, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        self.assertEqual(cr.error_items, [], f"IMRaD 完整不应有 error: {cr.error_items}")
-
-    def test_bad_missing_anchor_warns(self):
-        # 新逻辑（FW-E 轻方案）：无任何审计定位锚点（abstract/introduction/discussion）
-        # 才告警；仅有 method/result 缺 introduction 这类理论类文献结构不再告警
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        (tmp / "references" / "notes" / "Smith2020.md").write_text(_NOTE_FULL_NO_ANCHOR, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        self.assertTrue(cr.warning_items, "无审计定位锚点的 full_text 笔记应告警")
-        self.assertTrue(any("锚点" in w["message"] for w in cr.warning_items))
-
-    def test_good_intro_only_note_passes(self):
-        # 理论/综述类文献：有 Introduction 锚点即视为可定向审计，不再报缺 method/result
-        # （参考文献章节缺失是另一维度，此处只验证不再报"缺锚点"）
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        (tmp / "references" / "notes" / "Smith2020.md").write_text(_NOTE_FULL_BAD, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        anchor_msgs = [w for w in cr.warning_items if "锚点" in w["message"]]
-        self.assertEqual(anchor_msgs, [],
-                         f"有 Introduction 锚点的笔记不应报缺锚点（理论类结构合规）: {anchor_msgs}")
-
-    def test_good_numbered_headings_recognized(self):
-        # 归一化精确匹配：带编号的标题（1. Introduction / 1.1 Discussion）仍识别为锚点
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        note = _NOTE_FULL.replace("## Abstract", "## 1. Abstract") \
-                         .replace("## Introduction", "## 1.1 Introduction") \
-                         .replace("## References", "## References")
-        (tmp / "references" / "notes" / "Smith2020.md").write_text(note, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        anchor_msgs = [w for w in cr.warning_items if "锚点" in w["message"]]
-        self.assertEqual(anchor_msgs, [], f"带编号的锚点标题应识别: {anchor_msgs}")
-
-    def test_methodology_does_not_count_as_method(self):
-        # 子串误配回归：只有 Methodology 标题时，method 不算已找到（精确匹配）
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        note = _NOTE_FULL.replace("## Method", "## Methodology")
-        (tmp / "references" / "notes" / "Smith2020.md").write_text(note, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        detail = {d["file"]: d for d in cr.details if d.get("file") == "Smith2020.md"}
-        self.assertTrue(detail, "应有 Smith2020 的详情")
-        self.assertNotIn("method", detail["Smith2020.md"].get("found_sections", []),
-                         "Methodology 不应被精确匹配为 method")
-
-    def test_adjacent_duplicate_headings_warn(self):
-        # 转换/编辑残留：## Conclusion 后紧跟 ### Conclusion（同题父子标题）→ 告警
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        note = _NOTE_FULL + "\n## Conclusion\n### Conclusion\nDuplicate heading residue.\n"
-        (tmp / "references" / "notes" / "Smith2020.md").write_text(note, encoding="utf-8")
-        ctx = _ctx_for(tmp)
-        cr = check.check_note_structure(ctx)
-        self.assertTrue(any("重复标题" in w["message"] for w in cr.warning_items),
-                        f"相邻同题父子标题应告警: {cr.warning_items}")
-
 class TestPdfsNaming(unittest.TestCase):
     def test_good_pdf_matches_bib(self):
         tmp = _copy_fixture()
@@ -1441,302 +1193,6 @@ class TestCitationRepetition(unittest.TestCase):
         self.assertEqual(len(cr), 2)
 
 
-# ── note_heading_gaps：未打井号的标题（note-guide.md §2.1「分项标题也是标题」） ──
-_NOTE_HEADING_GAPS = """---
-title: Sloppy Extract
-citekey: sloppy_extract_2023
-note_type: full_text
-generated_by: pdf_extract
-source_words: 900
----
-
-## 1. 研究方法
-
-（1）扩展的技术接受模型
-
-技术接受理论主张从个体视角出发探究用户接纳并使用某项技术的行为，进而归纳出其背后的影响因素与作用机制，本文以此为基础再扩展出六个变量。
-
-（2）对于初始模型底部的需求项，分别设置正向与反向问题，设计Kano问卷。
-
-根据最终确定的需求项设计重要度问卷并进行调查，抽样方法与之前相同，共发放问卷五百份。
-
-## 2. 结果
-
-Lower
-
-Upper
-
-Results
-
-0.089
-
-结果部分的正文在这里展开，说明各个假设的检验情况与效应量大小。
-"""
-
-_NOTE_HEADINGS_OK = """---
-title: Clean Extract
-citekey: clean_extract_2024
-note_type: full_text
-generated_by: pdf_extract
-source_words: 900
----
-
-## 1. 研究方法
-
-### 1.1 模型构建
-
-#### （1）扩展的技术接受模型
-
-技术接受理论主张从个体视角出发探究用户接纳并使用某项技术的行为，进而归纳出其背后的影响因素与作用机制。
-"""
-
-# 判据 4 要的是「后接**散文**」。两类实测误报都出在这里：候选行后面跟的**不是散文**
-# （表占位注释／题注说明文），但**够长**，于是被长度代理放行。
-_NOTE_TABLE_NOTE_TAIL = """---
-title: Table Note Tail
-citekey: table_note_tail_2024
-note_type: full_text
-generated_by: pdf_extract
-source_words: 900
----
-
-## 2. 描述性统计
-
-| 变量 | M | SD |
-|:--|:--|:--|
-| 乘客态度 | 2.71 | 1.28 |
-
-Note(s): **p < 0.01, N = 294
-
-<!-- Table 4: Means ± standard deviations as a function of eWOM polarity and gender -->
-"""
-
-_NOTE_FIGURE_PANEL_LABELS = """---
-title: Figure Panel Labels
-citekey: figure_panel_2024
-note_type: full_text
-generated_by: pdf_extract
-source_words: 900
----
-
-## 3. 残差检验
-
-1. Chinese sample
-
-2. Korean sample
-
-Note: (1) 标准化残差的累积正态概率图接近一条直线，说明残差服从正态分布，满足回归分析的基本假定，故无需变换。
-"""
-
-
-class TestNoteHeadingGaps(unittest.TestCase):
-    """漏标标题检出——判据是"末尾无句末标点"，不是"像不像标题"。"""
-
-    def _run(self, name: str, text: str):
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        (tmp / "references" / "notes" / f"{name}.md").write_text(text, encoding="utf-8")
-        return check.check_note_heading_gaps(_ctx_for(tmp))
-
-    def _hits(self, text: str):
-        _, body = lib_common.split_frontmatter(text)
-        return [t for _, t in lib_common.find_unmarked_headings(body)]
-
-    def test_detects_numbered_subsection_without_marker(self):
-        """`（1）分项标题` 独立成段、后接散文、不带句末标点 → 检出。"""
-        self.assertIn("（1）扩展的技术接受模型", self._hits(_NOTE_HEADING_GAPS))
-
-    def test_sentence_ending_item_is_not_a_heading(self):
-        """带句末标点的编号项是列表项／算法步骤，不得误判为标题。"""
-        hits = self._hits(_NOTE_HEADING_GAPS)
-        self.assertFalse([h for h in hits if "设计Kano问卷" in h],
-                         f"带句号的编号项被误判: {hits}")
-
-    def test_table_cells_are_not_headings(self):
-        """表格单元格竖排：后面跟的还是单元格、不是散文 → 不判为标题。
-
-        判据是"其后紧跟一段散文"；`Results` 虽是章节名实词，但后面是 `0.089`。
-        """
-        self.assertNotIn("Results", self._hits(_NOTE_HEADING_GAPS))
-
-    def test_table_note_before_placeholder_is_not_a_heading(self):
-        """表注后面跟的是表占位注释，不是散文 → 不判为标题。
-
-        `Note(s)` 命中章节名词表，且不带句末标点；只做长度代理时，下一块的
-        表占位注释（够长）会把它放行——这是实测误报之一。
-        """
-        self.assertEqual(self._hits(_NOTE_TABLE_NOTE_TAIL), [])
-
-    def test_figure_panel_labels_are_not_headings(self):
-        """图的子图标签后面跟的是 `Note:` 题注说明，不是散文 → 不判为标题。
-
-        `1. Chinese sample`／`2. Korean sample` 命中编号标题正则，后接的题注
-        说明文又长又像散文——这是实测误报之二。
-        """
-        self.assertEqual(self._hits(_NOTE_FIGURE_PANEL_LABELS), [])
-
-    def test_marked_heading_is_not_reported(self):
-        """已打井号的标题不在检出范围。"""
-        self.assertEqual(self._hits(_NOTE_HEADINGS_OK), [])
-
-    def test_check_reports_aggregated_with_action(self):
-        """多篇只出一条汇总警告，且须给出可执行动作（不能只报文件名）。"""
-        cr = self._run("sloppy_extract_2023", _NOTE_HEADING_GAPS)
-        self.assertEqual(len(cr.warning_items), 1, f"应只出一条汇总警告: {cr.warning_items}")
-        d = cr.details[0]
-        self.assertEqual(d["total"], 1)
-        self.assertIn("sloppy_extract_2023.md", d["notes"][0]["file"])
-        self.assertEqual(cr.action_items[0]["target"], "note:references/notes/")
-
-    def test_clean_library_passes_silently(self):
-        """无漏标时不得报警（否则全库每篇都刷一条）。"""
-        cr = self._run("clean_extract_2024", _NOTE_HEADINGS_OK)
-        self.assertEqual(cr.warning_items, [])
-        self.assertEqual(cr.ok, cr.total)
-
-
-# ── note_table_gaps：表题注缺表体（note-guide.md §2.1） ──
-# `<!-- Table N: 题注 -->` 兼作题注，表体紧随其下；只有题注没有表体 = 这张表丢了。
-_NOTE_TABLE_GAPS = """---
-title: Table Gaps
-citekey: table_gaps_2023
-note_type: full_text
-generated_by: pdf_extract
-source_words: 900
----
-
-## 1. Results
-
-<!-- Table 1: Means and standard deviations. -->
-
-| Group | M | SD |
-|:--|--:|--:|
-| A | 3.2 | 0.9 |
-
-<!-- Table 2: Regression coefficients. -->
-
-Table 2 reports the regression coefficients for the full model with all controls included.
-
-## 2. Discussion
-
-<!-- Table 3: Robustness checks. -->
-
-本节说明稳健性检验的三种设定及其与主模型的一致性，结论方向未变。
-
-Table 3 的结果见正文讨论。
-"""
-
-_NOTE_TABLE_OK = """---
-title: Tables Fine
-citekey: tables_fine_2024
-note_type: full_text
-generated_by: pdf_extract
-source_words: 900
----
-
-## 1. Results
-
-<!-- Table 1: Means. -->
-
-| Group | M |
-|:--|--:|
-| A | 3.2 |
-"""
-
-
-class TestNoteTableGaps(unittest.TestCase):
-    """表题注缺表体——判据是"占位符后第一行非空内容不是 Markdown 表格行"。"""
-
-    def _run(self, name: str, text: str):
-        tmp = _copy_fixture()
-        _clear_notes(tmp)
-        (tmp / "references" / "notes" / f"{name}.md").write_text(text, encoding="utf-8")
-        return check.check_note_table_gaps(_ctx_for(tmp))
-
-    def _hits(self, text: str):
-        _, body = lib_common.split_frontmatter(text)
-        return lib_common.find_table_placeholders_without_body(body)
-
-    def test_caption_with_body_is_not_flagged(self):
-        """占位符兼作题注、表体紧随其下 → 正常用法，不得报（这是 64% 的主流形态）。"""
-        hits = self._hits(_NOTE_TABLE_GAPS)
-        self.assertFalse([h for h in hits if "Table 1" in h], f"题注+表体被误报: {hits}")
-
-    def test_caption_without_body_is_flagged(self):
-        """只有题注没有表体 → 这张表整块丢了。"""
-        hits = self._hits(_NOTE_TABLE_GAPS)
-        self.assertEqual(len(hits), 2, f"应报 Table 2/3 两处: {hits}")
-        self.assertTrue(any("Table 2" in h for h in hits))
-        self.assertTrue(any("Table 3" in h for h in hits))
-
-    def test_bold_group_header_before_body_is_not_flagged(self):
-        """表体前夹加粗分组小标题（`**Part I**`）仍算有表体——实测踩到的误报。"""
-        text = _NOTE_TABLE_GAPS.replace(
-            "<!-- Table 1: Means and standard deviations. -->\n\n| Group | M | SD |",
-            "<!-- Table 1: Means and standard deviations. -->\n\n**Study 1**\n\n| Group | M | SD |")
-        hits = self._hits(text)
-        self.assertFalse([h for h in hits if "Table 1" in h], f"分组小标题被当成缺表体: {hits}")
-        self.assertEqual(len(hits), 2, f"Table 2/3 仍应被报: {hits}")
-
-    def test_plain_text_caption_repeat_before_body_is_not_flagged(self):
-        """表体前夹纯文本重复题注（`Table 1 ...`）仍算有表体——实测踩到的第二类误报。"""
-        text = _NOTE_TABLE_GAPS.replace(
-            "<!-- Table 1: Means and standard deviations. -->\n\n| Group | M | SD |",
-            "<!-- Table 1: Means and standard deviations. -->\n\n"
-            "Table 1 Means and standard deviations.\n\n| Group | M | SD |")
-        hits = self._hits(text)
-        self.assertFalse([h for h in hits if "Table 1" in h], f"重复题注被当成缺表体: {hits}")
-        self.assertEqual(len(hits), 2, f"Table 2/3 仍应被报: {hits}")
-
-    def test_emphasized_caption_with_split_subtitle_is_not_flagged(self):
-        """`**Table 1**` ＋ 斜体副题 ＋ 表体 → 有表体，不得报（题注跨两行是既定写法）。"""
-        text = _NOTE_TABLE_GAPS.replace(
-            "<!-- Table 1: Means and standard deviations. -->\n\n| Group | M | SD |",
-            "**Table 1**\n\n*A subset of recent work on acceptance.*\n\n| Group | M | SD |")
-        hits = self._hits(text)
-        self.assertFalse([h for h in hits if "Table 1" in h], f"斜体副题被当成缺表体: {hits}")
-        self.assertEqual(len(hits), 2, f"Table 2/3 仍应被报: {hits}")
-
-    def test_emphasized_caption_without_body_is_flagged(self):
-        """整行被强调符包住的题注同样要判：其后不是表体 → 报。"""
-        text = _NOTE_TABLE_GAPS.replace(
-            "<!-- Table 3: Robustness checks. -->\n\n本节说明",
-            "**Table 3. Robustness checks.**\n\n本节说明")
-        hits = self._hits(text)
-        self.assertTrue(any("Robustness checks" in h for h in hits), f"加粗题注漏报: {hits}")
-
-    def test_bare_plain_text_table_reference_is_not_flagged(self):
-        """裸写的 `Table 4. …` **不认**作题注——正文句也这样起头。
-
-        认了它，实测每 4 条上报有 3 条是正文句（"Table 3. In the direct effect…"），
-        误报率 75%，判据立不住。**宁可不覆盖这一族。**
-        """
-        text = _NOTE_TABLE_GAPS.replace(
-            "Table 3 的结果见正文讨论。",
-            "Table 4. In the direct effect analysis, the five topics differ across groups.")
-        hits = self._hits(text)
-        self.assertFalse([h for h in hits if "Table 4" in h], f"正文句被当成题注: {hits}")
-
-    def test_inline_comment_is_not_flagged(self):
-        """夹在正文里的行内注释不是题注占位符，不得参与判定。"""
-        text = _NOTE_TABLE_GAPS.replace(
-            "Table 3 的结果见正文讨论。",
-            "具体见 <!-- Table 4: 行内注释 --> 所述内容。")
-        self.assertFalse([h for h in self._hits(text) if "Table 4" in h])
-
-    def test_check_aggregates_with_action(self):
-        """多篇只出一条汇总警告，且须给出可执行动作。"""
-        cr = self._run("table_gaps_2023", _NOTE_TABLE_GAPS)
-        self.assertEqual(len(cr.warning_items), 1, f"应只出一条汇总警告: {cr.warning_items}")
-        self.assertEqual(cr.details[0]["total"], 2)
-        self.assertEqual(cr.action_items[0]["target"], "note:references/notes/")
-
-    def test_all_tables_present_passes_silently(self):
-        cr = self._run("tables_fine_2024", _NOTE_TABLE_OK)
-        self.assertEqual(cr.warning_items, [])
-        self.assertEqual(cr.ok, cr.total)
-
-
 class TestChapterPatternChineseNumerals(unittest.TestCase):
     """测试章节提取支持中文数字与汉字章节标记（如 ## 第一章 绪论，## 一、引言）。"""
 
@@ -1793,3 +1249,108 @@ class TestCheckCitationRepetition(unittest.TestCase):
         self.assertEqual(cr.warning_items, [])
 
 
+
+
+# ── 证据卡：笔记只留六块骨架与摘录，细节回 PDF 读（note-guide.md §二） ──
+_CARD_OK = """---
+title: "Test Paper"
+source: "Doe (2020). Test Paper. J. Test."
+citekey: "doe_test_2020"
+note_type: "evidence_card"
+generated_by: "card_extract"
+source_kind: "pdf"
+generated_at: "2026-11-06"
+lang: "en"
+---
+
+## 研究问题
+
+解释缺失如何影响算法厌恶。
+
+## 方法
+
+两项实验，N = 412。
+
+## 关键发现
+
+解释缺失组采纳率下降 18 个百分点。
+
+## 边界
+
+样本为美国在线被试，不外推到线下情境。
+
+## 摘录
+
+- **p.12**｜支撑：解释缺失升高算法厌恶｜2026-11-06
+  > Participants shown no explanation were 18 pp less likely to follow the algorithm's advice.
+
+## 不该用来支撑
+
+人群差异（本样本无跨文化比较）。
+"""
+
+
+class TestEvidenceCard(unittest.TestCase):
+    """证据卡判据：六块齐、摘录带位置、被引文献至少一条实引原文。
+
+    这几条是本轮设计的骨架——**位置字段是「以 PDF 为准」的机械保证**：
+    没有 p.N／abstract／URL，摘录就回不到原文，等于又一份无来源的转录。
+    """
+
+    def _check(self, card: str = _CARD_OK, paper: str = "既有研究已证实这一点 @doe_test_2020。"):
+        tmp = _copy_fixture(test_case=self)
+        _clear_notes(tmp)
+        (tmp / "references" / "notes" / "doe_test_2020.md").write_text(card, encoding="utf-8")
+        _write_paper(tmp, paper)
+        return check_citation.check_evidence_card(_ctx_for(tmp))
+
+    def test_complete_card_passes(self):
+        cr = self._check()
+        self.assertEqual(cr.error_items, [], f"合格证据卡不应报错: {cr.error_items}")
+
+    def test_missing_section_is_error(self):
+        cr = self._check(_CARD_OK.replace("## 边界\n\n样本为美国在线被试，不外推到线下情境。\n\n", ""))
+        self.assertTrue(cr.error_items, "缺「边界」节必须报错")
+        self.assertTrue(any("缺节" in e["message"] and "边界" in e["message"] for e in cr.error_items))
+
+    def test_pdf_source_needs_page_number(self):
+        cr = self._check(_CARD_OK.replace("**p.12**", "**第 12 页**"))
+        self.assertTrue(cr.error_items, "pdf 来源的摘录位置必须是 p.N")
+        self.assertTrue(any("不是页码" in e["message"] for e in cr.error_items))
+
+    def test_abstract_source_needs_abstract_location(self):
+        cr = self._check(_CARD_OK.replace('source_kind: "pdf"', 'source_kind: "abstract"'))
+        self.assertTrue(cr.error_items, "abstract 来源写页码是自相矛盾的")
+        self.assertTrue(any("应为 abstract" in e["message"] for e in cr.error_items))
+
+    def test_excerpt_without_quote_is_error(self):
+        cr = self._check(_CARD_OK.replace(
+            "  > Participants shown no explanation were 18 pp less likely to follow the algorithm's advice.\n", ""))
+        self.assertTrue(cr.error_items, "摘录没有原文等于没有证据")
+        self.assertTrue(any("缺原文" in e["message"] for e in cr.error_items))
+
+    def test_excerpt_without_support_is_error(self):
+        cr = self._check(_CARD_OK.replace("｜支撑：解释缺失升高算法厌恶", "｜用途：随便看看"))
+        self.assertTrue(cr.error_items, "摘录必须说明它支撑什么")
+        self.assertTrue(any("缺「支撑" in e["message"] for e in cr.error_items))
+
+    def test_empty_excerpt_section_is_error(self):
+        cr = self._check(_CARD_OK.split("## 摘录")[0] + "## 摘录\n\n## 不该用来支撑\n\n人群差异。\n")
+        self.assertTrue(cr.error_items, "被引文献的摘录区不能为空")
+        self.assertTrue(any("摘录区为空" in e["message"] for e in cr.error_items))
+
+    def test_legacy_note_is_counted_not_blamed(self):
+        """旧格式笔记不报错、计入「未转换」——退役的是检查，不是笔记本身。"""
+        legacy = "---\ntitle: \"T\"\nsource: \"D (2020).\"\ncitekey: \"doe_test_2020\"\n" \
+                 "note_type: \"full_text\"\ngenerated_by: \"pdf_extract\"\n---\n\n# T\n\n正文。\n"
+        cr = self._check(legacy)
+        self.assertEqual(cr.error_items, [], f"旧格式笔记不应报错: {cr.error_items}")
+        self.assertTrue(any("旧格式笔记" in w["message"] for w in cr.warning_items),
+                        f"应报覆盖率并说明旧格式待转换: {cr.warning_items}")
+
+    def test_no_notes_dir_is_skipped(self):
+        tmp = _copy_fixture(test_case=self)
+        (tmp / "write" / "paper.md").write_text("正文 @doe_test_2020。", encoding="utf-8")
+        shutil.rmtree(tmp / "references" / "notes")
+        cr = check_citation.check_evidence_card(_ctx_for(tmp))
+        self.assertTrue(cr.skipped_items, "无 notes 目录应报「未启用」而不是通过")

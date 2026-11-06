@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -363,13 +364,26 @@ def load_entry_function(entry: Path, function: str):
     return func
 
 
+def framework_skills_dir() -> Path:
+    """框架自带技能目录。**这是它的唯一实现**（skill_roots 与 load_skills 都从这里取）。
+
+    `PAPERGATE_SKILLS_DIR` 可覆盖：测试要跑在"一个技能都没装"的世界里——
+    本机可能装了私有技能，而发布产物是干净克隆，两边必须同值，
+    否则测试通过不说明发布后可用。
+    """
+    override = os.environ.get("PAPERGATE_SKILLS_DIR")
+    if override:
+        return Path(override).expanduser()
+    return Path(__file__).resolve().parent.parent / "skills"
+
+
 def skill_roots(project_root: Path | None = None) -> list[tuple[Path | str, str]]:
     """技能目录：框架自带 + 项目本地（后者同名覆盖前者）。单一实现。
 
     `papergate.py` 与 `check.py` 都从这里取——两处各写一遍的话，
     改一处必漏另一处，而它们解析出的框架目录本来同值。
     """
-    roots: list[tuple[Path | str, str]] = [(Path(__file__).resolve().parent.parent / "skills", "framework")]
+    roots: list[tuple[Path | str, str]] = [(framework_skills_dir(), "framework")]
     if project_root is not None:
         local = Path(project_root) / "skills"
         if local.is_dir():
@@ -381,7 +395,7 @@ def load_skills(roots: list[tuple[Path | str, str]] | None = None) -> SkillRepor
     """扫描技能目录。`roots` 是 (目录, 来源标签) 列表，后者覆盖前者。"""
     report = SkillReport()
     if roots is None:
-        roots = [(Path(__file__).resolve().parent.parent / "skills", "framework")]
+        roots = [(framework_skills_dir(), "framework")]
 
     seen: dict[str, SkillSpec] = {}
     for root, source in roots:

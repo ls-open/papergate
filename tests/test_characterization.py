@@ -52,7 +52,10 @@ class TestCheckCharacterization(unittest.TestCase):
         for key in ("checks", "errors", "warnings", "action_items"):
             self.assertIn(key, data, f"diagnostics 缺字段 {key}")
         keys = {c.get("check_key") for c in data["checks"]} - PSEUDO_CHECK_KEYS
-        self.assertEqual(set(_chk.CHECK_REGISTRY), keys,
+        # 比对的是**合并后**的注册表（核心 + 已装技能声明的检查项）：
+        # 技能能贡献检查项之后，核心 CHECK_REGISTRY 不再是全集。
+        registry, _, _ = _chk.build_registry(FIXTURE)
+        self.assertEqual(set(registry), keys,
                          f"--all 应跑出全部注册项，实际 {len(keys)} 项")
         for c in data["checks"]:
             self.assertTrue(c.get("check_key"), "每项检查应有稳定 check_key")

@@ -97,6 +97,9 @@ def _iter_sources(root: Path, rel: str, tracked: list[Path] | None = None):
                 continue
             if _is_junk(relative.name):
                 continue
+            # 已跟踪但工作树里被删掉的（删了还没提交）：导出的是工作树，跳过而不是崩
+            if not (root / relative).is_file():
+                continue
             yield root / relative, relative
         return
     for cur, dirnames, filenames in os.walk(src):

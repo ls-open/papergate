@@ -62,11 +62,6 @@ def cmd_related(args):
     _passthrough(args, "related.py")
 
 
-def cmd_refresh_words(args):
-    """委托给 refresh_words.py（无参数即干跑，故不注入 --help）"""
-    _passthrough(args, "refresh_words.py", help_when_bare=False)
-
-
 if __name__ == "__main__":
     import argparse
 
@@ -93,10 +88,6 @@ if __name__ == "__main__":
     p_related = sub.add_parser("related", add_help=False,
                                help="库内同段共现检索：这个说法，库里还有哪几篇讲过")
     p_related.set_defaults(func=cmd_related)
-
-    p_refresh = sub.add_parser("refresh-words", add_help=False,
-                               help="按现行口径重算笔记的 source_words（保留率基准；缺省干跑）")
-    p_refresh.set_defaults(func=cmd_refresh_words)
 
     # 用 parse_known_args 把 subcommand 后的 --option 形式参数作为 remaining 透传给底层脚本
     args, remaining = parser.parse_known_args()

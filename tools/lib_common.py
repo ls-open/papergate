@@ -379,148 +379,6 @@ def parse_gist(body: str) -> str | None:
     return None
 
 
-# ── 未标井号的标题检出（note-guide.md §2.1「分项标题也是标题」） ──────────────
-# 中文期刊论文与部分英文论文用 `（1）（2）` / `(1)(2)` 开头立子标题：独立成段、后接正文。
-# 这类若没标 `####`，其正文会被归进**上级节的自身正文**，于是上级节 body_words 被灌大、
-# 摘要概括了子节内容，真子节却拿不到摘要——**核证时按目录选节会选到错的那一层**。
-_UNMARKED_SUBSEC_RE = re.compile(
-    r"^(?:[（(]\s*[\d一二三四五六七八九十]+\s*[)）]|\d+\s*[.)、．])\s*\S"
-)
-_UNMARKED_VOCAB_RE = re.compile(
-    r"^(?:abstract|introduction|background|related|literature|method|materials?|data|"
-    r"measures?|sample|participants?|procedure|analys[ei]s|results?|findings?|discussion|"
-    r"conclusions?|limitations?|implications?|references?|appendix|notes?|"
-    r"摘要|引言|绪论|前言|文献综述|研究方法|结果|讨论|结论|结语|总结|展望|局限|启示|建议|参考文献|附录)\b",
-    re.IGNORECASE,
-)
-# **标题不带句末标点**——这是区分「标题」与「编号列表项／算法步骤」的唯一判据。
-# `（1）扩展的技术接受模型` 是标题；`（4）计算初始改进率。初始改进率反映…` 不是。
-_HEADING_END_PUNCT = "。．.,，：:；;！!？?、"
-_UNMARKED_MAX_LEN = 76
-
-# 判据 4 要的是「后接**散文**」。只做长度代理不够——**非散文块只要够长也会通过**，
-# 而图注/表注说明文恰恰又长又像散文。故先按块首把非散文挡掉：
-# HTML 注释、表格行、引用块、标题、列表项，以及题注标记（`Note:` 一族）。
-_NONPROSE_HEAD_RE = re.compile(
-    r"^(?:<!--|\||>|#|[-*+]\s|\d+[.)]\s|"
-    r"(?:Notes?|Sources?|Table|Figure|Fig\.)\s*[:：]|注\s*[:：]|资料来源\s*[:：])",
-    re.IGNORECASE,
-)
-
-
-def _is_prose_block(block: str) -> bool:
-    """该块是不是「成段散文」——`find_unmarked_headings` 判据 4 用。"""
-    if not block or _NONPROSE_HEAD_RE.match(block):
-        return False
-    return count_words(block) >= 25 or len(block) >= 60
-
-
-
-def find_unmarked_headings(body: str) -> list[tuple[int, str]]:
-    """检出「一眼是标题、却没打井号」的行。返回 [(块序号, 文本)]。
-
-    四条判据同时成立：
-      1. **独立成段**（前后皆空行），块内无换行；
-      2. 形如 `（1）标题` `(1) Title` `1. Title`，或起首是章节名实词（Introduction／结果…）；
-      3. **末尾不带句末标点**——把编号列表项与算法步骤排除在外；
-      4. **其后紧跟一段散文**——先按块首排除非散文（注释／表格行／引用块／标题／列表项／
-         `Note:` 一族题注标记），再看长度（≥25 词或 ≥60 字）。两步都要：
-         只看长度的话，**够长的表注说明文会冒充散文**。
-
-    ⚠ 它只回答**"疑似漏标"**，不回答"该标几级"。层级仍须回 PDF 按字号／编号判断。
-    """
-    blocks = [b.strip() for b in re.split(r"\n\s*\n", body)]
-    existing = {h.title.strip().lower() for h in list_headings(body)}
-    found: list[tuple[int, str]] = []
-    for i, b in enumerate(blocks):
-        if not b or "\n" in b or b[0] in "#|><!--![-*":
-            continue
-        if len(b) > _UNMARKED_MAX_LEN:
-            continue
-        if b.count("|") >= 2 or "http://" in b or "https://" in b or "doi.org" in b:
-            continue
-        if sum(c.isdigit() for c in b) > len(b) * 0.4:
-            continue
-        if b.rstrip().endswith(tuple(_HEADING_END_PUNCT)):
-            continue
-        if not (_UNMARKED_SUBSEC_RE.match(b) or _UNMARKED_VOCAB_RE.match(b)):
-            continue
-        nxt = blocks[i + 1] if i + 1 < len(blocks) else ""
-        if not _is_prose_block(nxt):
-            continue
-        if b.lower() in existing:
-            continue
-        found.append((i, b))
-    return found
-
-
-# ── 表题注占位符缺表体（note-guide.md §2.1） ────────────────────────────────
-_TABLE_PLACEHOLDER_RE = re.compile(r"^\s*<!--\s*Table\b.*-->\s*$", re.IGNORECASE)
-
-# 题注另有**整行被强调符包住**的写法（`**Table 3. …**` / `*Table 3. …*`）。
-# ⚠ 只认**整行**包住的：正文句不会整句加粗，故这一族不产生误报。
-# 裸写的 `Table 3. …` **不认**——正文句也这样起头（"Table 3. In the direct effect…"），
-# 实测每 4 条上报里 3 条是正文句，判据立不住，宁可不覆盖。
-_TABLE_CAPTION_EMPH_RE = re.compile(r"^\s*(?:\*\*(?P<b>.+?)\*\*|\*(?P<i>.+?)\*)\s*$")
-_TABLE_CAPTION_WORD_RE = re.compile(r"^\s*(?:表|Table)\s*\d+", re.IGNORECASE)
-
-
-def _table_caption(line: str) -> str | None:
-    """该行是不是表题注；是则返回题注文本，否则 None。"""
-    if _TABLE_PLACEHOLDER_RE.match(line):
-        return line.strip()
-    m = _TABLE_CAPTION_EMPH_RE.match(line)
-    if m:
-        inner = (m.group("b") or m.group("i") or "").strip()
-        if _TABLE_CAPTION_WORD_RE.match(inner):
-            return inner
-    return None
-
-
-def is_table_row(line: str) -> bool:
-    """该行是不是**标准** Markdown 表格行（首尾都有竖线，≥3 个竖线）。
-
-    `note-guide.md` §2.1 要求「表格转为**标准** Markdown 表格」。GFM 虽然容许
-    不写首尾竖线（`a | b`），但本库的既定形态是带外框的；不认这种形态不是检查项
-    的缺陷，而是**笔记没有转成标准表格**——该改的是笔记，不是这里。
-    """
-    s = line.strip()
-    return s.startswith("|") and s.endswith("|") and s.count("|") >= 3
-
-
-# 表体之前可能夹的**非表格行**，都属题注自身的组成，跳过它们继续找表格行——
-# 不跳过会把「有表体」误报成缺表体。实测三类：加粗的题注行、**斜体的副题行**
-# （题注跨两行时第二行是斜体）、注释、纯文本重复题注。
-_TABLE_SKIPPABLE_RE = re.compile(
-    r"^\s*(?:\*\*.*\*\*|\*.*\*|<!--.*-->|Table\s*\d+\b.*)?\s*$",
-    re.IGNORECASE,
-)
-
-
-def find_table_placeholders_without_body(body: str) -> list[str]:
-    """检出「有表题注、却没有表体」的位置，返回题注文本。
-
-    题注有两种既定写法（见 `_table_caption`）：注释式 `<!-- Table N: 题注 -->`，
-    与**整行被强调符包住**式 `**Table N. 题注**`。表体紧随其下。判据因此是
-    「题注之后，跳过空行／加粗小标题／注释／重复的纯文本题注，第一行实质内容
-    不是标准 Markdown 表格行」——只有题注而无表体，说明这张表整块丢了，
-    而表里的数往往正是核证要用的证据。
-    """
-    lines = body.split("\n")
-    out: list[str] = []
-    for i, ln in enumerate(lines):
-        if _table_caption(ln) is None:
-            continue
-        first = ""
-        for x in lines[i + 1:i + 9]:
-            if x.strip() and not _TABLE_SKIPPABLE_RE.match(x):
-                first = x
-                break
-        if not is_table_row(first):
-            out.append(ln.strip())
-    return out
-
-
 def list_headings(body: str) -> list:
     """列出笔记正文所有标题，返回 [Heading(level, title, gist, body_words)]。
 
@@ -1045,6 +903,7 @@ def build_notes_index(notes_dir: Path, root_dir: Path) -> dict:
             "path": str(note_file.relative_to(root_dir)),
             "note_type": str(fm.get("note_type") or "").strip().lower() if fm else "",
             "generated_by": str(fm.get("generated_by") or "").strip().lower() if fm else "",
+            "source_kind": str(fm.get("source_kind") or "").strip().lower() if fm else "",
         }
     return index
 
@@ -1093,10 +952,14 @@ def determine_evidence_level(has_abstract: bool, note_info):
     """判定单条 citekey 的证据等级。
 
     依据 papergate/standards/writing/citation-standards.md 引用标准节：
-      full 有笔记 + note_type ∈ {full_text, concept_note}
-                   + generated_by ∈ {pdf_extract, ai_summary}（必填且合法）
-      partial 无笔记 + bib 有 abstract；或笔记缺必填字段/值非法
-      none 无笔记 + bib 无 abstract
+      full    原文级证据：证据卡 source_kind ∈ {pdf, web}；或旧格式 full_text
+      partial 二手概括：concept_note（AI 依摘要综述）；或证据卡 source_kind=abstract；
+              或笔记缺必填字段/值非法；或无笔记但 bib 有 abstract
+      none    无笔记 + bib 无 abstract
+
+    **levels 是给审计判「措辞强度允不允许」用的**，所以"哪里来的"决定等级：
+    依摘要写的笔记与依原文摘录的笔记，即使都"有笔记"，证据力不同
+    （citation-audit.md §3.1 一等/二手的区分即源于此）。
 
     返回 (level, reason)
     """
@@ -1107,12 +970,20 @@ def determine_evidence_level(has_abstract: bool, note_info):
 
     note_type = note_info.get("note_type", "")
     generated_by = note_info.get("generated_by", "")
+    source_kind = note_info.get("source_kind", "")
 
     if not note_type:
         return ("partial", "note has no note_type field")
-    if note_type in ("full_text", "concept_note") and \
-       generated_by in ("pdf_extract", "ai_summary"):
+    if note_type == "evidence_card":
+        if source_kind in ("pdf", "web"):
+            return ("full", f"evidence card from {source_kind}")
+        if source_kind == "abstract":
+            return ("partial", "evidence card from abstract only")
+        return ("partial", f"evidence card with unknown source_kind: {source_kind or '(missing)'}")
+    if note_type == "full_text" and generated_by == "pdf_extract":
         return ("full", "full note available")
+    if note_type == "concept_note" and generated_by == "ai_summary":
+        return ("partial", "concept note (AI summary, not original text)")
     if note_type in ("full_text", "concept_note"):
         return ("partial", f"note with unknown generated_by: {generated_by or '(missing)'}")
 

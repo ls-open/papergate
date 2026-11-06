@@ -14,8 +14,17 @@
 
 将 tools/、skills/ 根、及所有子技能目录同时注入 sys.path，测试可任意 import。
 """
+import os
 import sys
+import tempfile
 from pathlib import Path
+
+# 框架自带技能默认不参与测试：本机可能装了私有技能（review-audit / cnki），
+# 而发布产物是干净克隆——测试必须跑在与发布产物同一个世界里，否则
+# 「没装技能时该报未启用」这类断言在本机永远复现不出来。
+# 项目级 skills/ 是独立扫描根，不受影响（技能接线测试照常自建临时技能）。
+os.environ.setdefault("PAPERGATE_SKILLS_DIR",
+                      tempfile.mkdtemp(prefix="papergate_no_framework_skills_"))
 
 # 论文侧：papergate/tools/（check / lib_common / lib_config / check_shared / skill_loader）
 _PAPERGATE = Path(__file__).resolve().parent.parent

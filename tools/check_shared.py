@@ -427,14 +427,3 @@ def citation_density_baseline(doc_kind: str) -> dict:
         profile = DOC_KIND_PROFILES["journal"]
     return (CITATION_DENSITY_BASELINE_THESIS
             if profile["density_baseline"] == "thesis" else CITATION_DENSITY_BASELINE)
-
-EXPECTED_NOTE_SECTION_KEYWORDS = [
-    "abstract", "introduction", "method", "result", "discussion", "conclusion",
-]
-
-# 审计定位锚点（轻方案）：按引用意图定向读取笔记时依赖的章节
-# （见 standards/writing/citation-standards.md §七 文献笔记类型与证据等级）。理论/综述类文献天然
-# 无 method/result，故只要有任一锚点即可定位读取；全部缺失才视为"无法定向阅读"。
-NOTE_AUDIT_ANCHOR_KEYWORDS = [
-    "abstract", "introduction", "discussion",
-]

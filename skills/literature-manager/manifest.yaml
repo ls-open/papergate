@@ -4,7 +4,7 @@ description: "文献管理：Zotero 同步、文献笔记、bib 条目操作、P
 commands:
   - name: lit
     entry: lit.py
-    help: "文献管理统一入口（list / zotero / pdf2text / related / refresh-words）"
+    help: "文献管理统一入口（list / zotero / pdf2text / related）"
   - name: literature
     entry: lit.py
     help: "lit 的别名"

@@ -8,25 +8,17 @@ import re
 from check_shared import (
     citation_density_baseline,
     CheckResult,
-    EXPECTED_NOTE_SECTION_KEYWORDS,
-    NOTE_AUDIT_ANCHOR_KEYWORDS,
     is_early_draft,
     stage_severity,
 )
 from lib_config import DOC_KIND_PROFILES
 from lib_common import (
     CITEKEY_PATTERN,
-    MIN_PLAUSIBLE_SOURCE_WORDS,
     bib_citekey_lines,
     build_evidence_inventory,
     build_notes_index,
     count_citations_by_key,
     cite_sentences,
-    count_words,
-    find_table_placeholders_without_body,
-    find_unmarked_headings,
-    gist_status,
-    list_headings,
     normalize_title,
     extract_chapter_citations,
     load_frontmatter,
@@ -418,15 +410,17 @@ def check_notes_frontmatter(ctx, ) -> CheckResult:
         return cr
 
     required_fields = ["title", "source", "citekey", "note_type", "generated_by"]
-    # 合法值（与笔记规范一致：full_text↔pdf_extract、concept_note↔ai_summary）
-    valid_note_types = {"full_text", "concept_note"}
-    valid_generated_by = {"pdf_extract", "ai_summary"}
+    # 合法值（与笔记规范一致：evidence_card↔card_extract、concept_note↔ai_summary；
+    # full_text↔pdf_extract 为旧格式，仍可读、仍可写，只是不再被核对内容）
+    valid_note_types = {"evidence_card", "concept_note", "full_text"}
+    valid_generated_by = {"card_extract", "ai_summary", "pdf_extract"}
+    valid_source_kinds = {"pdf", "abstract", "web"}
     for note_file in sorted(note_files):
         content = read_file(note_file)
         fm = load_frontmatter(content)
         if fm is None:
             cr.add(False, {"file": note_file.name, "has_frontmatter": False},
-                   error=f"{note_file.name} 缺少 YAML frontmatter 或 frontmatter 非法（必填字段：title/source/citekey/note_type/generated_by，full_text 另需 source_words）",
+                   error=f"{note_file.name} 缺少 YAML frontmatter 或 frontmatter 非法（必填字段：title/source/citekey/note_type/generated_by；evidence_card 另需 source_kind）",
                    severity="major")
             continue
         # 1. 字段存在性
@@ -436,7 +430,7 @@ def check_notes_frontmatter(ctx, ) -> CheckResult:
                    error=f"{note_file.name} frontmatter 缺少 `{field}`" if not has else None,
                    severity="major" if not has else None,
                    action={"type": "confirm", "target": f"references/notes/{note_file.name}",
-                           "instruction": f"在 {note_file.name} frontmatter 中补充 `{field}` 字段。citekey 应与文件名一致；note_type ∈ {{full_text, concept_note}}；generated_by ∈ {{pdf_extract, ai_summary}}"} if not has else None)
+                           "instruction": f"在 {note_file.name} frontmatter 中补充 `{field}` 字段。citekey 应与文件名一致；note_type ∈ {{evidence_card, concept_note}}；generated_by ∈ {{card_extract, ai_summary}}"} if not has else None)
         # 2. note_type 值合法性
         if fm.get("note_type") is not None:
             nt_val = str(fm["note_type"]).strip().lower()
@@ -451,44 +445,56 @@ def check_notes_frontmatter(ctx, ) -> CheckResult:
             cr.add(valid, {"file": note_file.name, "field": "generated_by", "value": gb_val, "valid": valid},
                    error=f"{note_file.name} generated_by='{gb_val}' 不是合法值（合法: {sorted(valid_generated_by)}）" if not valid else None,
                    severity="major" if not valid else None)
-        # 4. note_type ↔ generated_by 绑定（笔记规范：full_text↔pdf_extract、concept_note↔ai_summary）
+        # 4. note_type ↔ generated_by 绑定（笔记规范：evidence_card↔card_extract、
+        #    concept_note↔ai_summary；full_text↔pdf_extract 为旧格式）
         if fm.get("note_type") is not None and fm.get("generated_by") is not None:
             nt_val = str(fm["note_type"]).strip().lower()
             gb_val = str(fm["generated_by"]).strip().lower()
-            expected_gb = {"pdf_extract"} if nt_val == "full_text" else ({"ai_summary"} if nt_val == "concept_note" else None)
+            expected_gb = {"evidence_card": {"card_extract"},
+                           "concept_note": {"ai_summary"},
+                           "full_text": {"pdf_extract"}}.get(nt_val)
             pair_ok = (expected_gb is not None and gb_val in expected_gb)
             if not pair_ok:
                 cr.add(False, {"file": note_file.name, "note_type": nt_val, "generated_by": gb_val,
                                "expected": sorted(expected_gb) if expected_gb else None},
-                       error=f"{note_file.name} note_type='{nt_val}' 与 generated_by='{gb_val}' 不匹配（绑定：full_text↔pdf_extract、concept_note↔ai_summary）",
+                       error=f"{note_file.name} note_type='{nt_val}' 与 generated_by='{gb_val}' 不匹配（绑定：evidence_card↔card_extract、concept_note↔ai_summary、full_text↔pdf_extract）",
                        severity="major")
-        # 5. source_words：full_text 必填（保留率基准，note-guide.md §1.1）；concept_note 不填
+        # 5. source_kind：evidence_card 必填，决定摘录的「位置」怎么写
+        #    （source_words 随保留率检查一并退役：旧 full_text 笔记里留着也不报错，
+        #      但它已无消费方，不再要求新笔记填写）
         if fm.get("note_type") is not None:
             nt_val = str(fm["note_type"]).strip().lower()
-            if nt_val == "full_text" and fm.get("source_words") is None:
-                cr.add(False, {"file": note_file.name, "field": "source_words", "exists": False},
-                       error=f"{note_file.name} full_text 笔记缺少 `source_words`（PDF 提取产物词数基准）",
-                       severity="major",
-                       action={"type": "confirm", "target": f"references/notes/{note_file.name}",
-                               "instruction": f"在 {note_file.name} frontmatter 中补充 `source_words`（取本次 PDF 提取产物的词数，CJK 逐字 + 英文单词口径；文本层与直读两路混合时按合并后原始提取统计）"})
+            if nt_val == "evidence_card":
+                sk_val = str(fm.get("source_kind") or "").strip().lower()
+                if not sk_val:
+                    cr.add(False, {"file": note_file.name, "field": "source_kind", "exists": False},
+                           error=f"{note_file.name} 证据卡缺少 `source_kind`（pdf / abstract / web——决定摘录位置写页码还是摘要）",
+                           severity="major",
+                           action={"type": "confirm", "target": f"references/notes/{note_file.name}",
+                                   "instruction": "在 frontmatter 补 `source_kind`：有 PDF 写 \"pdf\"，只有摘要写 \"abstract\"，网页来源写 \"web\""})
+                elif sk_val not in valid_source_kinds:
+                    cr.add(False, {"file": note_file.name, "source_kind": sk_val},
+                           error=f"{note_file.name} source_kind='{sk_val}' 不是合法值（合法: {sorted(valid_source_kinds)}）",
+                           severity="major")
         # 6. 引号风格统一（note-guide.md §1.1）：字符串字段一律双引号，
         #    纯数字字段（source_words/year 等）不引号
         fm_raw, _ = split_frontmatter(content)
         quote_issues = _frontmatter_quote_issues(fm_raw)
         if quote_issues:
             cr.add(False, {"file": note_file.name, "quote_issues": quote_issues},
-                   error=f"{note_file.name} frontmatter 引号风格不统一（字符串字段应使用双引号，如 note_type: \"full_text\"）: {', '.join(quote_issues)}",
+                   error=f"{note_file.name} frontmatter 引号风格不统一（字符串字段应使用双引号，如 note_type: \"evidence_card\"）: {', '.join(quote_issues)}",
                    severity="major",
                    action={"type": "confirm", "target": f"references/notes/{note_file.name}",
                            "instruction": f"将 {note_file.name} frontmatter 的 {'/'.join(quote_issues)} 字段改为双引号字符串；纯数字字段（source_words/year）保持不引号"})
         # 7. 字段集合：frontmatter 只放通用字段（note-guide.md §1.1 上表即全集）
         allowed_field_list = ["title", "source", "citekey", "doi", "note_type",
-                              "generated_by", "source_words", "generated_at", "lang"]
+                              "generated_by", "source_kind", "source_words",
+                              "generated_at", "lang"]
         allowed_fields = set(allowed_field_list)
         unknown_fields = [k for k in fm if k not in allowed_fields]
         if unknown_fields:
             cr.add(False, {"file": note_file.name, "unknown_fields": unknown_fields},
-                   error=f"{note_file.name} frontmatter 含未知字段 {', '.join(unknown_fields)}（frontmatter 只放 title/source/citekey/doi/note_type/generated_by/source_words/generated_at/lang；abstract/keywords 等非通用内容放正文）",
+                   error=f"{note_file.name} frontmatter 含未知字段 {', '.join(unknown_fields)}（frontmatter 只放 title/source/citekey/doi/note_type/generated_by/source_kind/source_words/generated_at/lang；abstract/keywords 等非通用内容放正文）",
                    severity="major",
                    action={"type": "confirm", "target": f"references/notes/{note_file.name}",
                            "instruction": f"删除 {note_file.name} frontmatter 的 {'/'.join(unknown_fields)} 字段；如需保留内容（如摘要/关键词），放入正文对应章节"})
@@ -982,11 +988,10 @@ def check_citation_density(ctx, bib_entries: dict | None = None) -> CheckResult:
 def check_evidence_level(ctx, bib_abstracts: dict | None = None, notes_index: dict | None = None) -> CheckResult:
     """证据可用性预统计（被引口径 full/partial/none）
     
-    判定规则（依据 papergate/standards/writing/citation-standards.md §七）：
-      full 有笔记 + note_type ∈ {full_text, concept_note}
-                    + generated_by ∈ {pdf_extract, ai_summary}
-      partial 无笔记 + bib 有 abstract
-      none 无笔记 + bib 无 abstract
+    判定规则（唯一实现在 `lib_common.determine_evidence_level`）：
+      full    原文级：证据卡 source_kind ∈ {pdf, web}；旧格式 full_text
+      partial 二手：concept_note、证据卡 source_kind=abstract、无笔记但有 abstract
+      none    无笔记 + bib 无 abstract
     只统计 paper.md 实际引用的条目（与审查前置步骤的被引 none 口径一致）；
     未引用条目由 check_citation_bidirectional 另行提示，不计入证据缺口。
 
@@ -1098,32 +1103,95 @@ def check_notes_flatness(ctx, ) -> CheckResult:
         cr.add(True, detail={"note": "无子目录，结构扁平"})
     return cr
 
-def _normalize_note_heading(heading: str) -> str:
-    """章节标题归一化：去行首编号与首尾空白。
+# ── 证据卡（note_type: evidence_card）─────────────────────────────────────
+#
+# 笔记干两件活：**留痕**（PDF 不进 git，换台机器只有笔记能证明原文说过什么）与
+# **读细节**（方法、数据、表）。旧设计让一条笔记同时干这两件——把 PDF 全文重打一遍：
+# 贵（单篇可达 8 万字节）、有损（表题注在、表体没了），而核心只查"抄得像不像原文"，
+# 从不查"这条笔记撑不撑得住正文那句话"；后者一直是审计 Agent 在判。
+#
+# 拆开：笔记只留六块骨架与摘录，细节回 PDF 读。摘录必须带位置（页码／摘要／URL）——
+# 「最终以 PDF 为准」不是一句态度，就是这个位置字段；没有它，回不去。
+EVIDENCE_CARD_SECTIONS = ("研究问题", "方法", "关键发现", "边界", "摘录", "不该用来支撑")
+EVIDENCE_CARD_SOURCE_KINDS = {"pdf", "abstract", "web"}
+_CARD_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$")
+_CARD_EXCERPT_RE = re.compile(r"^-\s+\*\*(?P<loc>[^*]+?)\*\*\s*(?P<rest>.*)$")
+_CARD_PAGE_RE = re.compile(r"^p\.\d+(?:-\d+)?$")
 
-    编号形态（确定性处理，不做同义词展开）：
-    - ASCII：`1. Introduction` / `1.1 Abstract` / `1) X`
-    - 中文：`一、引言` / `（一）研究设计`（CNKI 论文常见编号）
 
-    锚点检测据此做精确匹配，避免 method↔methodology 之类关键词子串误配
-    （禁止扩词表补丁）。
+def _card_section_key(title: str) -> str:
+    """节标题归一：只去行首编号与首尾空白（确定性处理，不建同义词表）。"""
+    return re.sub(r"^[\d.、\s]+", "", title).strip()
+
+
+def _parse_evidence_card(body: str) -> tuple[dict, list]:
+    """切出 {节标题: 行列表} 与摘录条目列表。
+
+    摘录条目形如：
+
+        - **p.12**｜支撑：算法厌恶在解释缺失时显著上升｜2026-11-06
+          > 逐字原文……
+
+    位置在 `**…**` 里，其余用 `｜` 分隔；原文是紧随其后的 `>` 引用块。
     """
-    text = re.sub(r"^\s*\d+(?:\.\d+)*[\.\)]?\s*", "", heading)
-    text = re.sub(r"^\s*[（(][一二三四五六七八九十]+[）)]\s*", "", text)
-    text = re.sub(r"^\s*[一二三四五六七八九十]+、\s*", "", text)
-    return text.strip().strip("：:。.").lower()
+    sections: dict = {}
+    current = None
+    for line in body.split("\n"):
+        m = _CARD_HEADING_RE.match(line)
+        if m:
+            current = _card_section_key(m.group(1))
+            sections.setdefault(current, [])
+            continue
+        if current is not None:
+            sections[current].append(line)
+
+    excerpts: list = []
+    for raw in sections.get("摘录", []):
+        line = raw.strip()
+        m = _CARD_EXCERPT_RE.match(line)
+        if m:
+            meta = [p.strip() for p in m.group("rest").split("｜") if p.strip()]
+            excerpts.append({"loc": m.group("loc").strip(), "meta": meta, "quotes": []})
+        elif excerpts and line.startswith(">"):
+            quote = line.lstrip(">").strip()
+            if quote:
+                excerpts[-1]["quotes"].append(quote)
+    return sections, excerpts
 
 
-def check_note_structure(ctx, ) -> CheckResult:
-    """笔记结构完整性（full_text 笔记的 IMRaD 章节 + References + 页码残留）
+def _excerpt_problems(entry: dict, source_kind: str) -> list:
+    """单条摘录的问题清单（空 = 合格）。判据都在格式里，不猜内容对不对。"""
+    problems = []
+    loc = entry["loc"]
+    if not loc:
+        problems.append("缺位置")
+    elif source_kind == "pdf" and not _CARD_PAGE_RE.match(loc):
+        problems.append(f"位置 `{loc}` 不是页码（pdf 来源应写 p.12）")
+    elif source_kind == "abstract" and loc.lower() != "abstract":
+        problems.append(f"位置 `{loc}` 应为 abstract")
+    elif source_kind == "web" and not loc.lower().startswith("http"):
+        problems.append(f"位置 `{loc}` 应为 URL")
+    if not entry["quotes"]:
+        problems.append("缺原文（没有 `>` 引用块）")
+    elif not any(meta.startswith("支撑") for meta in entry["meta"]):
+        problems.append("缺「支撑：…」（这段原文能证明什么）")
+    return problems
 
-    收敛边界（存在性审计）：References 标题与页码残留等精确分支保留；
-    锚点检测用归一化后的精确标题匹配（避免 method↔methodology
-    之类子串误配，禁止扩词表）。标题归一化只做确定性处理：去行首编号与首尾空白。
+
+def check_evidence_card(ctx, ) -> CheckResult:
+    """证据卡：六块齐、摘录带位置、正文引用到的每篇至少一条实引原文。
+
+    与 `note_gist` / `evidence_level` 同构：**报覆盖率，不逐篇报警**——存量笔记
+    按自己的节奏转，一行看清进度。**只对被正文引用的文献硬判**：没被引用的文献
+    缺卡片不构成"没有证据就引用"，不必为它刷红。
+
+    旧格式（full_text / concept_note）不参与判定，计入「未转换」：旧笔记不报错，
+    只是不再被核对内容。
     """
-    cr = CheckResult("笔记结构完整性（章节 + 参考文献）")
+    cr = CheckResult("证据卡（引用必须有可回查的原文与位置）")
     if not ctx.notes_dir.exists():
-        cr.add_skipped("文献笔记块未启用：无 references/notes/")
+        cr.add_skipped("文献笔记块未启用：无 references/notes/（不用笔记也能写稿；"
+                       "放笔记后此项自动生效）")
         return cr
 
     note_files = [f for f in ctx.notes_dir.glob("*.md") if f.name != "README.md"]
@@ -1131,425 +1199,92 @@ def check_note_structure(ctx, ) -> CheckResult:
         cr.add(True, detail={"note": "未找到笔记文件"})
         return cr
 
-    checked = 0
-
+    cards: dict = {}
     for note_file in sorted(note_files):
         content = read_file(note_file)
-        fm_data = load_frontmatter(content)
-        if fm_data is None:
+        fm = load_frontmatter(content)
+        if fm is None:
             continue
-
-        # 只检查 full_text 类型笔记
-        if str(fm_data.get("note_type") or "").strip().lower() != "full_text":
+        if str(fm.get("note_type") or "").strip().lower() != "evidence_card":
             continue
-
-        checked += 1
-
-        # 提取所有 ## 章节标题
         _, body = split_frontmatter(content)
-        headings = re.findall(r"^##\s+(.+)$", body, re.MULTILINE)
-        heading_lower = [_normalize_note_heading(h) for h in headings]
-
-        # 相邻父子同题标题残留检测（转换/编辑常见事故：`## Conclusion` 后紧跟
-        # `### Conclusion` 且中间无正文；确定性匹配，不扩词表）
-        all_headings = [
-            (len(m.group(1)), _normalize_note_heading(m.group(2)))
-            for m in re.finditer(r"^(#{2,3})\s+(.+)$", body, re.MULTILINE)
-        ]
-        dup_titles = []
-        for (la, na), (lb, nb) in zip(all_headings, all_headings[1:]):
-            if la == 2 and lb == 3 and na == nb:
-                dup_titles.append(na)
-
-        # 笔记语言：frontmatter lang → 论文 primary_language（fallback en）。
-        # 中文文献笔记正文为中文结构（摘要/绪论/结论/参考文献），英文笔记为英文
-        # 结构——锚点/参考文献词表按笔记实际语言选择，避免中文笔记误报。
-        note_lang = str(fm_data.get("lang") or "").strip().lower() or \
-            str(ctx.project_config.get("primary_language", "en")).strip().lower()
-        if note_lang == "zh":
-            # 中文词表兼容早期笔记工具的标准头（## Abstract / ## References 对两种
-            # 语言通用），中文文献笔记两种写法都接受：纯中文头或标准英文头。
-            section_kws = ["摘要", "abstract", "引言", "绪论", "方法", "结果", "讨论", "结论"]
-            anchor_kws = ["摘要", "abstract", "引言", "绪论", "讨论", "结论"]
-            ref_kws = ["参考文献", "引用文献", "references"]
-        else:
-            section_kws = EXPECTED_NOTE_SECTION_KEYWORDS
-            anchor_kws = NOTE_AUDIT_ANCHOR_KEYWORDS
-            ref_kws = ["references", "bibliography"]
-
-        # 检查审计定位锚点（轻方案）：有任一锚点（abstract/introduction/discussion
-        # 或中文对应词）即可按引用意图定向读取（见 standards/writing/citation-standards.md §七 文献笔记类型与证据等级）；
-        # 理论/综述类文献天然无 method/result，不强制。全缺才视为无法定向阅读。
-        found = []
-        missing = []
-        for kw in section_kws:
-            if kw in heading_lower:
-                found.append(kw)
-            else:
-                missing.append(kw)
-        anchor_hits = [kw for kw in anchor_kws if kw in heading_lower]
-        no_anchor = not anchor_hits
-
-        # 检查 References 章节（按语言词表）
-        has_refs = any(h in ref_kws for h in heading_lower)
-
-        # 检查页码标记残留
-        page_markers = re.findall(r"<!--\s*Page\s+\d+\s*-->", body)
-
-        # 拼装报告
-        issues = []
-        if no_anchor:
-            anchor_desc = "、".join(anchor_kws[:3])
-            issues.append(f"无审计定位锚点（缺 {anchor_desc} 任一章节，审计时需读全文）")
-        if not has_refs:
-            issues.append("缺少参考文献章节")
-        if page_markers:
-            issues.append(f"残留 {len(page_markers)} 个页码标记")
-        if dup_titles:
-            issues.append("相邻重复标题残留: " + "、".join(sorted(set(dup_titles))))
-
-        if issues:
-            cr.add(
-                False,
-                {
-                    "file": note_file.name,
-                    "found_sections": sorted(found),
-                    "missing_sections": missing,
-                    "has_references": has_refs,
-                    "page_markers": len(page_markers),
-                    "audit_anchors": anchor_hits,
-                    "duplicate_headings": sorted(set(dup_titles)),
-                },
-                warning=f"{note_file.name}: {'; '.join(issues)}",
-                severity="minor",
-            )
-        else:
-            cr.add(
-                True,
-                detail={
-                    "file": note_file.name,
-                    "sections": [h.strip() for h in headings],
-                    "status": "结构完整",
-                },
-            )
-
-    if checked == 0:
-        cr.add(True, detail={"note": "无 full_text 类型笔记"})
-
-    return cr
-
-def check_note_gist(ctx, ) -> CheckResult:
-    """笔记节摘要覆盖率（note-guide.md §2.2）。
-
-    `full_text` 笔记中"该有摘要的节"应各有一行 `> 本节：…`，使 `note-sec --list`
-    直接充当导航——不读全文即可选节。
-
-    **判据只有一处**：`lib_common.needs_gist`（渲染 `--list` 与本校验共用，不会两边漂）。
-
-    与 `citation_bidirectional` / `evidence_level` 同构：**报覆盖率，不逐篇报警**——
-    否则 120 篇未补的笔记会各出一条警告，把报告刷成没人看的东西。
-    覆盖率是进度指标：补到哪、离 100% 还有多远，一行看清。
-    """
-    cr = CheckResult("笔记节摘要覆盖率")
-    if not ctx.notes_dir.exists():
-        cr.add_skipped("文献笔记块未启用：无 references/notes/")
-        return cr
-
-    note_files = [f for f in ctx.notes_dir.glob("*.md") if f.name != "README.md"]
-    if not note_files:
-        cr.add(True, detail={"note": "未找到笔记文件"})
-        return cr
-
-    per_note = []          # [{file, covered, required, missing}]
-    required_total = covered_total = 0
-
-    for note_file in sorted(note_files):
-        content = read_file(note_file)
-        fm_data = load_frontmatter(content)
-        if fm_data is None:
-            continue
-        if str(fm_data.get("note_type") or "").strip().lower() != "full_text":
-            continue          # concept_note 仅几百字，直接读全文，不适用
-        _, body = split_frontmatter(content)
-        # 判据与 `--list` 尾部回执共用 gist_status（同一函数，不会两边漂）
-        st = gist_status(list_headings(body))
-        if not st["required"]:
-            continue
-        required_total += st["required"]
-        covered_total += st["written"]
-        per_note.append({
+        sections, excerpts = _parse_evidence_card(body)
+        cards[note_file.stem] = {
             "file": note_file.name,
-            "covered": st["written"],
-            "required": st["required"],
-            "missing": st["missing"][:8],
-            "missing_total": len(st["missing"]),
-            "oversize_total": len(st["oversize"]),
-        })
-
-    if required_total == 0:
-        cr.add(True, detail={"note": "无适用笔记（无 full_text 笔记或均无可摘要的节）"})
-        return cr
-
-    ratio = covered_total / required_total
-    detail = {
-        "coverage": round(ratio, 4),
-        "sections_covered": covered_total,
-        "sections_required": required_total,
-        "notes_fully_covered": sum(1 for n in per_note if n["missing_total"] == 0),
-        "notes_total": len(per_note),
-        "per_note": per_note,
-    }
-
-    if covered_total == required_total:
-        cr.add(True, detail={**detail, "note": f"节摘要 {covered_total}/{required_total} 节全覆盖"})
-        return cr
-
-    # 警告须点名"缺哪几节"，否则只报文件名等于没给动作
-    # 只有"已开始补、但没补完"的篇才点名——全覆盖的篇 missing 为空，点名会产出空条目
-    started = [n for n in per_note if n["covered"] > 0 and n["missing_total"] > 0]
-    parts = []
-    for n in started[:5]:
-        titles = "、".join(n["missing"][:3])
-        tail = f" 等 {n['missing_total']} 节" if n["missing_total"] > len(n["missing"][:3]) else ""
-        parts.append(f"{n['file']} 缺 {titles}{tail}")
-    started_txt = f"；已补但未完成：{'；'.join(parts)}" if parts else ""
-    if len(started) > 5:
-        started_txt += f"（另 {len(started) - 5} 篇）"
-    cr.add(False, detail, severity="info",
-           warning=f"节摘要覆盖率 {covered_total}/{required_total} 节（{ratio:.1%}）"
-                   f"，{detail['notes_fully_covered']}/{len(per_note)} 篇完整"
-                   f"——新提取必带，旧笔记按需补{started_txt}")
-    return cr
-
-
-def check_note_heading_gaps(ctx, ) -> CheckResult:
-    """笔记漏标标题（note-guide.md §2.1「分项标题也是标题」）。
-
-    检出「独立成段、末尾无句末标点、后接成段散文、却不在标题树里」的裸标题行——
-    多为 `（1）（2）` 家族（中文期刊论文的分项子标题最常如此）。
-
-    **为什么要单独查**：漏标不是"目录少一层"这么轻。这些正文会被归进上级节的
-    **自身正文**，于是 ① 上级节 body_words 被灌大、摘要概括了子节内容，
-    ② 真子节拿不到自己的摘要，③ **核证时按目录选节会选到错的那一层**。
-
-    判据只有一处：`lib_common.find_unmarked_headings`。
-    """
-    cr = CheckResult("笔记漏标标题")
-    if not ctx.notes_dir.exists():
-        cr.add_skipped("文献笔记块未启用：无 references/notes/")
-        return cr
-    note_files = [f for f in ctx.notes_dir.glob("*.md") if f.name != "README.md"]
-    if not note_files:
-        cr.add(True, detail={"note": "未找到笔记文件"})
-        return cr
-
-    per_note = []
-    for note_file in sorted(note_files):
-        content = read_file(note_file)
-        fm_data = load_frontmatter(content)
-        if fm_data is None:
-            continue
-        if str(fm_data.get("note_type") or "").strip().lower() != "full_text":
-            continue          # concept_note 只有几百字，不存在层级问题
-        _, body = split_frontmatter(content)
-        hits = find_unmarked_headings(body)
-        if hits:
-            per_note.append({
-                "file": note_file.name,
-                "count": len(hits),
-                "preview": [t for _, t in hits[:6]],
-            })
-
-    if not per_note:
-        cr.add(True, detail={"note": "未检出漏标标题"})
-        return cr
-
-    total = sum(n["count"] for n in per_note)
-    named = "；".join(f"{n['file']} 漏 {n['count']} 行（如「{n['preview'][0]}」）"
-                      for n in per_note[:5])
-    tail = f"；另 {len(per_note) - 5} 篇" if len(per_note) > 5 else ""
-    cr.add(False, {"total": total, "notes": per_note}, severity="minor",
-           warning=f"{len(per_note)} 篇笔记共 {total} 行标题未打井号：{named}{tail}"
-                   "——漏标的子节正文会被归进上级节，摘要与选节都会错位；"
-                   "层级须回 PDF 按字号／编号判断后再补 `#`",
-           action={
-               "type": "confirm", "priority": "recommended",
-               "target": "note:references/notes/",
-               "instruction": "逐篇按 find_unmarked_headings 给出的行补 Markdown 标题；"
-                              "层级回原 PDF 按编号／字号判断（默认到原刊三级）",
-           })
-    return cr
-
-
-def check_note_table_gaps(ctx, ) -> CheckResult:
-    """表题注占位符缺表体（note-guide.md §2.1）。
-
-    `<!-- Table N: 题注 -->` **兼作题注**，表体紧随其下。只有题注而无表体，
-    说明这张表整块丢了——而表里的数往往正是核证要用的证据（正文写「如表5所示」，
-    笔记里却没有表5，核证就只能回 PDF 翻页）。
-
-    判据只有一处：`lib_common.find_table_placeholders_without_body`。
-    **报计数不逐篇报警**，与 `note_gist` 同构：存量补一个少一个，一行看清进度。
-    扫描件等文字层确实取不出的表属预期残留，不单列。
-    """
-    cr = CheckResult("笔记表题注缺表体")
-    if not ctx.notes_dir.exists():
-        cr.add_skipped("文献笔记块未启用：无 references/notes/")
-        return cr
-    note_files = [f for f in ctx.notes_dir.glob("*.md") if f.name != "README.md"]
-    if not note_files:
-        cr.add(True, detail={"note": "未找到笔记文件"})
-        return cr
-
-    per_note = []
-    total = 0
-    for note_file in sorted(note_files):
-        content = read_file(note_file)
-        fm_data = load_frontmatter(content)
-        if fm_data is None:
-            continue
-        if str(fm_data.get("note_type") or "").strip().lower() != "full_text":
-            continue
-        _, body = split_frontmatter(content)
-        hits = find_table_placeholders_without_body(body)
-        if hits:
-            total += len(hits)
-            per_note.append({"file": note_file.name, "count": len(hits),
-                             "preview": [h[:60] for h in hits[:3]]})
-
-    if not per_note:
-        cr.add(True, detail={"note": "未检出缺表体的表题注"})
-        return cr
-
-    top = "；".join(f"{n['file']} {n['count']} 处" for n in per_note[:5])
-    tail = f"；另 {len(per_note) - 5} 篇" if len(per_note) > 5 else ""
-    cr.add(False, {"total": total, "notes": per_note}, severity="minor",
-           warning=f"{len(per_note)} 篇共 {total} 处表题注未附表体：{top}{tail}"
-                   "——表体取其 PDF 文字层转为 Markdown 表；"
-                   "文字层确实取不出的，保留占位符并在紧随其后的正文补一句关键数值",
-           action={
-               "type": "confirm", "priority": "recommended",
-               "target": "note:references/notes/",
-               "instruction": "对每处缺表体的题注，用文献技能的 PDF 转文本能力取该篇文字层，"
-                              "把表转为 Markdown 表格置于题注下方",
-           })
-    return cr
-
-
-# 比值超过此值即判 `source_words` 是旧口径记的（分母过时），而非"保留率 >100%"。
-# 依据：笔记保留参考文献、只剔页眉页脚，比值有正常上界——实测一批 122 篇按现行口径
-# 重算后落在 0.50–1.24（中位数 0.99）。而旧口径记下的分母会让比值虚高到 1.3–1.5。
-# 阈值取 1.35，重算后的实测最大值 1.24 与它之间留有富余，不误报。
-_STALE_BENCHMARK_RATIO = 1.35
-
-
-def check_note_word_preservation(ctx, ) -> CheckResult:
-    """笔记正文词数 vs frontmatter source_words 基准的保留率（防精修大幅压缩）
-
-    仅检查 full_text（pdf_extract）笔记；concept_note（ai_summary）不参与保留率。
-    source_words 基准来自 PDF 提取产物词数（文本层或 AI 直读所得，CJK 逐字 + 英文单词口径）。
-    full_text 缺 source_words 属字段缺失，由 notes_frontmatter 检查负责报错，
-    此处跳过避免重复。
-
-    阈值：保留率 < 0.5 → warning(minor)；< 0.3 → warning(major)。
-    正常 full_text 清理页眉页脚/页码/References 后保留率约 0.8-1.0。
-
-    ⚠ 它**只拦"整篇被摘要式提取"**，不证明提得全、提得对不对。而 `source_words` 是
-    **声明值**：建笔记时写下，计数口径若变过就再也对不上，比值虚高、这一侧的判据随之
-    失灵。故另设 `_STALE_BENCHMARK_RATIO` 把"分母过时"单独报出来，提示跑
-    重算基准（原文献技能已移出核心，可由技能提供重算命令）。
-    """
-    cr = CheckResult("笔记词数保留率（正文 vs source_words 基准）")
-    if not ctx.notes_dir.exists():
-        cr.add_skipped("文献笔记块未启用：无 references/notes/")
-        return cr
-
-    note_files = [f for f in ctx.notes_dir.glob("*.md") if f.name != "README.md"]
-    if not note_files:
-        cr.add(True, detail={"note": "未找到笔记文件"})
-        return cr
-
-    checked = 0
-    skipped = 0
-
-    for note_file in sorted(note_files):
-        content = read_file(note_file)
-        fm_data = load_frontmatter(content)
-        if fm_data is None:
-            skipped += 1
-            continue
-
-        # 只查 full_text；concept_note 不参与保留率
-        note_type = str(fm_data.get("note_type") or "").strip().lower()
-        if note_type != "full_text":
-            skipped += 1
-            continue
-
-        # 无 source_words 基准字段 → 跳过（字段缺失由 notes_frontmatter 报错）
-        source_words_raw = fm_data.get("source_words")
-        if source_words_raw is None:
-            skipped += 1
-            continue
-
-        checked += 1
-        _, body = split_frontmatter(content)
-        body_words = count_words(body)
-        try:
-            source_words = int(str(source_words_raw).strip().strip('"\''))
-        except (TypeError, ValueError):
-            skipped += 1
-            continue
-        if source_words <= 0:
-            continue
-        ratio = body_words / source_words
-
-        detail = {
-            "file": note_file.name,
-            "source_words": source_words,
-            "body_words": body_words,
-            "ratio": round(ratio, 3),
+            "source_kind": str(fm.get("source_kind") or "").strip().lower(),
+            "sections": sections,
+            "excerpts": excerpts,
         }
 
-        if ratio > _STALE_BENCHMARK_RATIO and source_words >= MIN_PLAUSIBLE_SOURCE_WORDS:
-            # 分母过时，先报基准本身——这一侧的压缩判据对它已经失效。
-            # 声明值小到不像一篇文献时不下此判断：那是字段本身填错，归 notes_frontmatter。
-            cr.add(
-                False,
-                detail,
-                warning=f"{note_file.name}: 正文 {body_words} 词 > 声明基准 {source_words} 词（{ratio:.2f}×），"
-                        f"`source_words` 疑为旧口径所记——保留率判据对该篇已失效",
-                severity="minor",
-                action={"type": "confirm", "priority": "recommended",
-                        "target": "note:references/notes/",
-                        "instruction": "按现行口径重算并写回 source_words（文献技能可提供重算命令）"},
-            )
-        elif ratio < 0.3:
-            cr.add(
-                False,
-                detail,
-                warning=f"{note_file.name}: 正文 {body_words} 词 vs 粗提基准 {source_words} 词，保留率仅 {ratio:.0%}（严重压缩，需重新精修）",
-                severity="major",
-                action={"type": "confirm", "target": f"references/notes/{note_file.name}",
-                        "instruction": f"{note_file.name} 保留率过低（{ratio:.0%}），AI 应基于 PDF 提取产物（文本层 + 直读）重新精修，正文不得大幅压缩原文"},
-            )
-        elif ratio < 0.5:
-            cr.add(
-                False,
-                detail,
-                warning=f"{note_file.name}: 正文 {body_words} 词 vs 粗提基准 {source_words} 词，保留率 {ratio:.0%}（低于 50%，疑似压缩，请核对内容完整性）",
-                severity="minor",
-            )
-        else:
-            cr.add(
-                True,
-                detail={**detail, "status": "保留率正常"},
-            )
+    cited: set = set()
+    if getattr(ctx, "paper_md", None) and ctx.paper_md.exists():
+        cited = parse_paper_citations(read_file(ctx.paper_md))
 
-    if checked == 0:
-        cr.add(True, detail={"note": f"无含 source_words 基准的笔记（跳过 {skipped} 篇老笔记）"})
+    if not cited:
+        cr.add(True, detail={"note": "正文尚无引用（首次写作前正常）",
+                             "evidence_cards": len(cards)})
+        return cr
 
+    legacy = 0
+    absent = 0
+    broken: list = []
+    for citekey in sorted(cited):
+        card = cards.get(citekey)
+        if card is None:
+            if (ctx.notes_dir / f"{citekey}.md").exists():
+                legacy += 1          # 旧格式笔记：不判内容，计入未转换
+            else:
+                absent += 1          # 无笔记：归 evidence_level 判，不在此重复
+            continue
+        problems: list = []
+        missing_sections = [s for s in EVIDENCE_CARD_SECTIONS if s not in card["sections"]]
+        if missing_sections:
+            problems.append("缺节 " + "、".join(missing_sections))
+        if card["source_kind"] not in EVIDENCE_CARD_SOURCE_KINDS:
+            problems.append(f"source_kind=`{card['source_kind'] or '(空)'}` 非法"
+                            f"（应为 {'/'.join(sorted(EVIDENCE_CARD_SOURCE_KINDS))}）")
+        if not card["excerpts"]:
+            problems.append("摘录区为空（被引用的文献至少要有一条实引原文）")
+        for idx, entry in enumerate(card["excerpts"], 1):
+            entry_problems = _excerpt_problems(entry, card["source_kind"])
+            if entry_problems:
+                problems.append(f"第 {idx} 条摘录：" + "；".join(entry_problems))
+        if problems:
+            broken.append((card["file"], problems))
+
+    detail = {
+        "cited_total": len(cited),
+        "evidence_cards_in_use": len(cited) - legacy - absent,
+        "legacy_notes": legacy,
+        "no_note": absent,
+        "evidence_cards_total": len(cards),
+        "broken": [{"file": f, "problems": p} for f, p in broken],
+    }
+
+    if broken:
+        for note_name, problems in broken[:8]:
+            cr.add(False, {"file": note_name, "problems": problems},
+                   error=f"{note_name} 证据卡不合格：{'；'.join(problems)}",
+                   severity="major",
+                   action={"type": "confirm", "target": f"references/notes/{note_name}",
+                           "instruction": f"按笔记规范补齐六块（{'/'.join(EVIDENCE_CARD_SECTIONS)}），"
+                                          f"并为每条摘录补位置（p.N／abstract／URL）、实引原文与「支撑：…」"})
+        if len(broken) > 8:
+            cr.add(False, {"omitted": len(broken) - 8},
+                   error=f"另 {len(broken) - 8} 篇证据卡不合格（明细见 "
+                         f"results/diagnostics/papergate_check.json）", severity="minor")
+        return cr
+
+    covered = detail["evidence_cards_in_use"]
+    if legacy or absent:
+        cr.add(False, detail, severity="info",
+               warning=f"证据卡覆盖 {covered}/{len(cited)} 篇被引文献"
+                       f"（旧格式笔记 {legacy} 篇待转换；无笔记 {absent} 篇）"
+                       f"——已转换的卡片判据全部通过")
+        return cr
+
+    cr.add(True, detail={**detail, "note": f"{covered}/{len(cited)} 篇被引文献均有合格证据卡"})
     return cr
-
 
 # C4-b 重复检测的两个参数。判据只取"**近乎逐字相同**"，不做语义相似——
 # 同一文献在综述/假设推导/讨论各引一次、措辞相近，是**正常学术实践**（C4 的主体判据

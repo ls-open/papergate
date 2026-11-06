@@ -13,7 +13,7 @@
     warn_only    仅 warning=（不阻塞，成本-收益最可疑的一类）
     test_refs    tests/ 下对该检查函数名的出现次数——测试关注度**代理**；
                  fixture 级覆盖（好/坏样本对）以 tests/fixtures/README.md 为准，
-                 表驱动注入式测试会低估本指标（如 note_word_preservation）
+                 表驱动注入式测试会低估本指标
     fired        实测 N 个真实项目中出现 error/warning 的项目数
     e/w          实测 error/warning 总条数
     run_errors   有资格项目中运行失败的检查数（失败不算“零命中”，单独列 run_error_checks）
