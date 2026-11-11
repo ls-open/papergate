@@ -171,6 +171,103 @@ def detect_stage(project_root: Path) -> str:
     return detect_status(project_root)["stage"]
 
 
+# ---- 修订期：回复信状态判据 ----
+#
+# 「回复信已写」曾经被判成「文件存在」——于是 `revision new` 建出的空壳（全是
+# `<待填>` 模板槽位）一落盘就报「回复信已写，待修订 paper」，把没开始的活说成做完了。
+# 现在改成判**内容填没填**，只判「填没填」，不判「写得好不好」（质量是审查期的活）。
+#
+# 两条确定性判据：
+#   1. 占位符是否清空——尖括号片段内含中日韩字符（`<待填>`/`<粘贴原文>`），
+#      或英文待办词（`TBD`/`TODO`）。正文里的比较式（`p < 0.05`）没有闭合尖括号，
+#      HTML 标签是纯 ASCII 单词，都不会命中；宁可漏判成「已填」，也不把正常内容
+#      误判成占位（见 framework/philosophy.md §五）。
+#   2. 逐条小节数——`### ` 三级标题，submission.md §三 约定的意见条目格式；
+#      `revision new` 生成的骨架已按此排好。
+REVISION_LETTER = "response_letter.md"
+REVISION_MANIFEST = "revision.json"
+REVISION_DIR_RE = re.compile(r"^R(\d+)")
+_LETTER_PLACEHOLDER_RE = re.compile(r"<([^<>\n]{1,60})>")
+_LETTER_PLACEHOLDER_WORD_RE = re.compile(r"(?i)^\s*(tbd|todo|fixme|placeholder|xxx)\b")
+_CJK_RE = re.compile(r"[㐀-䶿一-鿿豈-﫿]")  # 与 lib_common._CJK_CHAR_RE 同集
+_LETTER_ENTRY_RE = re.compile(r"^###\s+\S", re.M)
+_FENCE_RE = re.compile(r"^```.*?^```", re.M | re.S)
+
+
+def _is_placeholder_token(token: str) -> bool:
+    return bool(_CJK_RE.search(token) or _LETTER_PLACEHOLDER_WORD_RE.match(token))
+
+
+def revision_letter_state(letter: Path) -> dict:
+    """回复信的填写状态（修订期子阶段与 revision_dirs 检查共用同一判据）。
+
+    Returns:
+        {
+            "exists": bool,
+            "placeholders": [(行号, 占位符原文), ...],  # 未替换的模板槽位
+            "entries": int,                            # `### ` 逐条小节数
+            "written": bool,                           # 占位清空且至少一条小节
+        }
+
+    `written` 的语义只到「模板槽位都填了、意见条目在」这一层——它决定 status 报
+    「待写回复信」还是「回复信已写」，不构成对回复质量的任何判断。
+    """
+    state: dict[str, Any] = {"exists": False, "placeholders": [], "entries": 0, "written": False}
+    if not letter.is_file():
+        return state
+    state["exists"] = True
+    try:
+        text = letter.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return state
+    # 代码块里的尖括号不是模板槽位
+    text = _FENCE_RE.sub("", text)
+    placeholders = [
+        (no, m.group(0))
+        for no, line in enumerate(text.splitlines(), 1)
+        for m in _LETTER_PLACEHOLDER_RE.finditer(line)
+        if _is_placeholder_token(m.group(1))
+    ]
+    state["placeholders"] = placeholders
+    state["entries"] = len(_LETTER_ENTRY_RE.findall(text))
+    state["written"] = not placeholders and state["entries"] >= 1
+    return state
+
+
+def _revision_round_no(dir_name: str) -> int:
+    """目录名里的轮次号（`R3` → 3）；不是 `R<n>` 开头返回 0。"""
+    m = REVISION_DIR_RE.match(dir_name)
+    return int(m.group(1)) if m else 0
+
+
+def revision_round_dirs(revisions_dir: Path) -> list[Path]:
+    """修订轮次目录（`R<n>` 开头），按轮次号升序；命名不规范的目录不列入。"""
+    if not revisions_dir.exists():
+        return []
+    dirs = [d for d in revisions_dir.iterdir()
+            if d.is_dir() and not d.name.startswith(".") and REVISION_DIR_RE.match(d.name)]
+    return sorted(dirs, key=lambda d: (_revision_round_no(d.name), d.name))
+
+
+def latest_revision_dir(revisions_dir: Path) -> Optional[Path]:
+    """当前修订轮次目录：轮次号最大者（同号取 mtime 最新）。
+
+    必须按轮次号取，不能按 glob 顺序：R2 刚建骨架时 R1 的回复信仍然是完整的，
+    取到 R1 就会把「第 2 轮还没开始」报成「回复信已写」。
+    命名不规范的目录退化为按 mtime 取最新，总比不报强。
+    """
+    if not revisions_dir.exists():
+        return None
+    rounds = revision_round_dirs(revisions_dir)
+    if rounds:
+        return max(rounds, key=lambda d: (_revision_round_no(d.name), d.stat().st_mtime))
+    others = [d for d in revisions_dir.iterdir()
+              if d.is_dir() and not d.name.startswith(".")]
+    if not others:
+        return None
+    return max(others, key=lambda d: (d.stat().st_mtime, d.name))
+
+
 # 审查时效阈值：审计超过此天数视为"久远"（温和提示复审）
 AUDIT_STALE_DAYS = 90
 
@@ -294,27 +391,48 @@ def detect_status(project_root: Path) -> dict:
         evidence = ["review/revisions/"]
         if tag_info:
             evidence.append("tag:" + tag_info["tag"])
-        # 标准路径是 R<n>/response_letter.md（旧实现查 revisions/response_letter.md，永远不可达）
-        response_letter = next(revisions_dir.glob("*/response_letter.md"), None) if has_revisions else None
-        if response_letter and response_letter.exists():
-            evidence.append(rel(response_letter))
+        # 当前轮次取轮次号最大者，不取 glob 首个：R2 刚建骨架时若取到 R1 的完整
+        # 回复信，会把「第 2 轮还没开始」报成「回复信已写」。
+        rev_dir = latest_revision_dir(revisions_dir)
+        letter = rev_dir / REVISION_LETTER if rev_dir else revisions_dir / REVISION_LETTER
+        letter_state = revision_letter_state(letter)
+        if rev_dir is not None and letter_state["exists"]:
+            evidence.append(rel(letter))
+        checks = ["--stage writing", "--stage citation"]
+        if letter_state["written"]:
             return {
                 "stage": "修订期",
                 "substage": "response_done",
                 "substage_label": "回复信已写，待修订 paper",
                 "evidence": evidence,
-                "checks": ["--stage writing", "--stage citation", "--stage review"],
+                "checks": checks + ["--stage review"],
                 "next_step": "逐条处理审稿意见，修改 paper.md",
             }
-        else:
+        if letter_state["exists"]:
+            # 文件在但槽位没填完/一条小节都没有：模板骨架落盘不算「已写」，
+            # 否则刚建的空壳一出现就把活报成做完了。
+            detail = []
+            if letter_state["placeholders"]:
+                detail.append(f"{len(letter_state['placeholders'])} 处占位未填")
+            if not letter_state["entries"]:
+                detail.append("缺逐条小节（`### `）")
             return {
                 "stage": "修订期",
                 "substage": "revising",
-                "substage_label": "收到审稿意见，待写回复信和修订",
+                "substage_label": "回复信骨架已建，尚未写完（" + "，".join(detail) + "）",
                 "evidence": evidence,
-                "checks": ["--stage writing"],
-                "next_step": "阅读审稿意见，开始写 response_letter.md",
+                "checks": checks,
+                "next_step": "先按条写回 response_letter.md（占位清空、每条意见一个小节），再改 paper.md",
             }
+        return {
+            "stage": "修订期",
+            "substage": "revising",
+            "substage_label": "收到审稿意见，待写回复信和修订",
+            "evidence": evidence,
+            "checks": checks,
+            "next_step": f"阅读审稿意见，开始写 {rev_dir.name + '/' if rev_dir else ''}{REVISION_LETTER}"
+                         "（`papergate.py revision new` 可生成骨架）",
+        }
 
     # ── 投稿期检测（文件驱动）──
     # 投稿包就绪（write/export/<目标>/submission_manuscript.md）→ 投稿期（无论是否有投稿历史）

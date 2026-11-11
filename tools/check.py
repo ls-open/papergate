@@ -65,6 +65,7 @@ from check_citation import (
     check_notes_flatness,
     check_notes_frontmatter,
 )
+from check_revision import check_revision_dirs
 from check_shared import (
     CHECK_STAGES,
     CheckResult,
@@ -207,6 +208,9 @@ CHECK_REGISTRY = {
     "header_wrap": (check_header_wrap, "submission"),
     # 判投稿副本与源稿的交叉一致性：两份各自自洽、合起来仍可能互相矛盾
     "cross_copy_consistency": (check_cross_copy_consistency, "submission"),
+    # 修订期（阶段判定里 revision 映射为 writing，故必须挂 writing 才跑得到；
+    # 挂 submission 是因为返修后要重新导出投稿包，那时同样该查这一轮是否齐）
+    "revision_dirs": (check_revision_dirs, ("writing", "submission")),
 }
 
 # 框架自检模式（--framework / 自动识别）运行的检查集合：

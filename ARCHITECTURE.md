@@ -95,6 +95,7 @@ papergate/
 │   │                        scripts_structure 脚本结构 / figures_dataflow 图与数据流）
 │   ├── check_citation.py  ← citation 阶段（bib 质量、引用双向、证据等级、NOTE_GUIDE 规范）
 │   ├── check_submission.py← submission 阶段（投稿包、CSL、分支卫生）
+│   ├── check_revision.py  ← 修订期（review/revisions/ 轮次目录完备性：回复信/来信/占位/登记）
 │   ├── check_shared.py    ← ProjectContext / CheckResult / 阶段判定
 │   ├── skill_loader.py    ← skills/*/SKILL.md 扫描、manifest 校验、命令发现
 │   ├── skill_api.py       ← 技能可用的稳定接口（配置/日志/bib/frontmatter）
@@ -104,6 +105,7 @@ papergate/
 │   ├── lib_manifest.py   ← results/manifest.json 与 table_map 解析、stale 判定（§五 列为唯一入口）
 │   ├── check_ledger.py    ← 检查项成本账本（LOC/测试关注/真实命中/误报记录）
 │   ├── rename_notes.py    ← citekey 变更批量重命名 notes/pdfs
+│   ├── revision_new.py    ← 修订轮脚手架（revision.json + 回复信骨架，只补缺失文件）
 │   ├── note_section.py    ← 笔记章节定位
 │   ├── diff_docx.py       ← Word 对比
 │   └── git-hooks/         ← commit-msg（提交格式）、pre-commit（门卫：大文件/密钥/
@@ -151,6 +153,9 @@ writing → citation → review → submission → revision
   6. **写作期**——以上都不匹配。
 - 同一条规则在不同阶段不同严格度（哲学 §四）：写作期 warning 不阻塞，投稿期 error 阻塞
 - 早期草稿子阶段：`is_early_draft` 按正文词数阈值放宽（`EARLY_DRAFT_MIN_WORDS`）
+- 修订期子阶段：`lib_config.revision_letter_state` 判回复信**槽位填没填**（占位清空 + 至少
+  一条 `### ` 逐条小节），不看文件是否存在——空骨架落盘当天不等于「回复信已写」。
+  同一判据被 `check_revision.check_revision_dirs` 复用，状态与检查不各说各话
 
 ### 3.3 检查输出契约
 
@@ -211,6 +216,7 @@ write/export/ ─────────→ check_submission（投稿包）
 | 新增可选能力（审查/文献/检索） | 建 `skills/<name>/`（`SKILL.md` + `manifest.yaml`，契约见 `skills/README.md`），在 `manifest.yaml` 里声明 `checks` / `status` / `commands`，**不要改核心注册表**；技能检查项会进 `check --list`，与核心检查项同等对待 |
 | 改名任何函数/文件/文档 | 改名提交自查：① grep 全局旧名（含 standards/、skills/、ARCHITECTURE.md、AGENTS.md、tests/）② 文档引用同步 ③ 注册表同步。`standards_code_refs` 检查兜底抓 `check_*` 类残留（扫 standards/ + framework/ + skills/ + ARCHITECTURE.md），其余靠自查纪律|
 | 改阶段判定 | `lib_config.detect_status` + `check_shared` 的阶段函数 |
+| 改修订期判据（回复信是否算已写 / 轮次目录） | `lib_config.revision_letter_state` / `revision_round_dirs`（status 与 `check_revision` 共用）+ 同步 `submission.md §三` |
 | 改 config 模板 | `template/scripts/config.py`（`--fix` 从它复制，勿改内嵌）|
 | 改 frontmatter 解析 | `lib_common.py`（`split_frontmatter`/`parse_frontmatter_dict`/`load_frontmatter`）|
 | 改标准文档 | `standards/*.md`（检查消费它；文档≠现实会漂移，改后跑 check）|

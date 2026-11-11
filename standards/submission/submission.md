@@ -83,12 +83,24 @@ main                                      ← 唯一分支：期刊无关的规�
 - 已有 `<项目名>-v<主版本>.<次版本>-<目标>-submitted` 标签，期刊格式/CSL/模板已适配好，可直接复用
 - 内容修改在 `main` 上完成（单仓库无分支，天然单内容源）
 
+**目录契约**（`check` 的 `revision_dirs` 按此核对；只核「件在不在、槽位填没填、轮次登记自不自洽」，**不判回复质量**）：
+
+```
+review/revisions/R<轮次>/
+├── revision.json          ← 轮次 / 目标期刊 / 投稿版 tag 与 commit（增量复审的起点）
+├── response_letter.md     ← 逐条回复，每条意见一个 `### ` 小节
+└── <期刊来信>              ← 决定信 PDF、邮件导出（eml/msg）或 docx/txt/md 摘录
+```
+
 ### 1. 准备修订目录
 
 ```bash
-mkdir -p review/revisions/R<轮次>/
-touch review/revisions/R<轮次>/response_letter.md
+cd <项目> && python3 ../papergate/papergate.py revision new R1
 ```
+
+生成上面三个文件的骨架：`revision.json` 从最新的 `-submitted` 标签取目标期刊与投稿版 commit，`response_letter.md` 的待填位置一律写成 `<待填>` 这类尖括号槽位。**只补缺失文件，不覆盖已有内容**——重跑是安全的。随后把期刊来信原件放进该目录。
+
+> 槽位还在 = 没写完。`status` 与 `check` 都按这条认：空骨架不会被报成「回复信已写」，落盘当天就能看出这一轮还没动。
 
 ### 2. 分析审稿意见并分类
 
@@ -101,13 +113,36 @@ AI 主动归纳审稿意见，分类并建议策略：
 | 格式调整 | 表格格式、参考文献格式 | 在投稿包中调整 |
 | 大段新增/重写 | 新增一节、重构方法描述 | 改 paper.md + 重跑相关审计 |
 
-### 3. 修改源稿
+### 3. 修改源稿 + 增量复审（只重审受影响的模块）
 
 ```bash
 # 3a. 按审稿意见修改 write/paper.md
 
-# 3b. 重新审查受影响模块（按所安装审查技能的协议）
+# 3b. 复核改动范围：起点是投稿版 commit（revision.json 的 base_commit）
+git diff --stat <base_commit>..HEAD -- write/paper.md results/ scripts/
+```
 
+**复审范围由意见类型决定，不整轮重跑**——修订期的复审对象是「相对投稿版改了什么」，
+不是「整篇再审一遍」。第 2 步的分类直接决定重跑哪几个审计模块：
+
+| 意见类型 | 受影响模块 | 范围怎么定 |
+|:---------|:-----------|:-----------|
+| 内容修改（补 limitations、改表述、修笔误） | 叙事；改动了引文支撑句再加引文 | 按 diff 逐条对：改到哪些句子，哪些引用挂在那些句子上 |
+| 数据重分析（新 robustness、补统计） | 数值（必）+ 叙事（新数字进正文的说法） | 先重跑管线 → 数值审计按新产物重做受影响条目 |
+| 引用增删 / 换文献 | 引文 | `audit-diff --since <base_commit>` 直接列出支撑句变动的 citekey，只重审这些 |
+| 格式调整（表格 / 参考文献样式） | 格式 | 按 §五 重新导出后核对，不必进四模块 |
+| 大段新增 / 重写（新增一节、重构方法） | 叙事 + 引文（新引用）+ 数值（含新数字时） | 新增节按全新内容审，存量部分按 diff |
+
+装了审查技能时，引文模块的增量范围由工具算：
+
+```bash
+cd <项目> && python3 ../papergate/papergate.py audit-diff --since <base_commit>
+```
+
+审查侧怎么登记这一轮、`round.json` 填什么、哪些模块可以沿用上一轮结论，见
+`skills/review-audit/standards/review.md`「修订期：针对审稿意见的增量复审」。
+
+```bash
 git add write/paper.md
 git commit -m "[<应用标识>] 写作/修正：第R<轮次>轮审稿意见修改"
 ```
@@ -124,8 +159,14 @@ git commit -m "[<应用标识>] 投稿/修正：第R<轮次>轮投稿包重新�
 ### 5. 写回复信
 
 填充 `review/revisions/R<轮次>/response_letter.md`，逐条回复：
+- **每条意见一个 `### ` 小节**（`revision new` 的骨架已按此排好，`check` 按小节数核「有没有逐条回复」）
 - 审稿意见原文 + 你的回复 + 对应修改位置
 - 确保每条意见都有回应，不跳过
+- 把骨架里的 `<…>` 占位全部替换掉——占位还在 = 这一轮还没写完
+
+回完跑一次 `python3 ../papergate/papergate.py check`：`revision_dirs` 会报出未填占位、
+缺期刊来信、轮次登记与目录名不一致；`status` 的子阶段据此决定是「待写回复信」还是
+「回复信已写，待修订 paper」。**它不判回复写得好不好**，那是审稿人与人的活。
 
 ### 6. 打修订标签 + 归档
 
@@ -136,6 +177,8 @@ git tag <项目名>-v<主版本>.<次版本>-<目标>-revised-R<轮次>
 ```
 
 标签命名与版本号规则见 `AGENTS.md §四 提交规范`（唯一权威，`check_git_tag_naming` 自动校验）。
+标签里的 `R<轮次>` 应与 `revision.json` 的 `round`、目录名三者同号：`revision_dirs` 核对登记与目录名，
+标签本身只由 `git_tag_naming` 查格式（`-revised-R<n>` 的形状），号对不对得上一眼确认。
 
 ### 7. 上传
 

@@ -2,6 +2,18 @@
 
 ## 未发布
 
+- **修订期工程支撑**（此前只有文档 SOP）：`papergate.py revision new R1` 生成
+  `review/revisions/R<n>/` 的 `revision.json`（轮次/期刊/投稿版 commit）与回复信骨架，
+  只补缺失文件、不覆盖已有内容
+- **修子阶段误报**：回复信是否「已写」按**槽位填没填**判（占位清空 + 至少一条 `### `
+  逐条小节，`lib_config.revision_letter_state`），不再按「文件存在」判——空骨架落盘当天
+  不再被报成「回复信已写，待修订 paper」；当前轮次按轮次号最大者取，R2 建骨架时不会被
+  R1 的完整回复信盖住
+- **新增 `revision_dirs` 检查**：修订目录缺回复信 / 缺期刊来信原件 / 占位未替换 /
+  `revision.json` 轮次与目录名不一致 / 投稿版 commit 解不开。只核确定性事实，不判回复质量
+- `submission.md §三` 补增量复审口径（以投稿版 commit 为 since、意见类型→受影响模块映射），
+  审查技能 `review.md` 补「修订期增量复审」节（按模块算覆盖、`round.json` 只写本轮真重审的模块）
+
 - **文献笔记改「证据卡」**：笔记不再是把 PDF 全文重打一遍，只留六块骨架
   （研究问题／方法／关键发现／边界／摘录／不该用来支撑）与**带位置的摘录**；
   方法细节回 PDF 读。frontmatter 新增 `source_kind`（pdf｜abstract｜web），

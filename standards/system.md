@@ -67,7 +67,7 @@ Severity 术语定义为两套独立用途的坐标轴（分属不同场景，�
 写作期格式规则（图片路径 / 表格数字来源 / `%% 样式行` 契约 / frontmatter / bib 来源 / citekey 同步）**全部由 `papergate.py check --stage writing` 自动校验**。写作时直接跑 `papergate.py check` 即可。
 
 ### 4.2 修订 SOP
-修订目录结构 `review/revisions/R<轮次>/`（`response_letter.md`；期刊来信 PDF 同目录）。完整流程见 `submission/submission.md §三/§四`。
+修订目录结构 `review/revisions/R<轮次>/`：`revision.json`（轮次/期刊/投稿版 commit）+ `response_letter.md`（逐条回复，每条一个 `### ` 小节）+ 期刊来信原件（pdf / 邮件导出 / docx / txt / md）。用 `papergate.py revision new R<n>` 建骨架（只补缺失文件，不覆盖）。完整流程见 `submission/submission.md §三/§四`；`check` 的 `revision_dirs` 核对件在不在、占位填没填、轮次登记是否自洽，**不判回复质量**。
 
 ### 4.3 Zotero 集合多项目隔离
 每个项目对应一个 Zotero 集合，在项目 `.papergate_config` 的 `[zotero]` section 配置 `collection_key`/`collection_name` 实现隔离。文献管理由技能提供；核心只读取配置并在未配置时提示。

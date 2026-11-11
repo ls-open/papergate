@@ -62,6 +62,7 @@ COMMANDS = {
     "rename": TOOLS_DIR / "rename_notes.py",
     "diff": TOOLS_DIR / "diff_docx.py",
     "note-sec": TOOLS_DIR / "note_section.py",
+    "revision": TOOLS_DIR / "revision_new.py",
 }
 
 # 审查、文献等能力由 skills/ 提供，核心不保留对应命令；知网检索不附带。
@@ -1328,7 +1329,7 @@ def main():
         print(f"  {'skills':22s} 列出已安装技能、能力与命令")
         print()
         print("辅助工具:")
-        for cmd in ("check", "note-sec", "diff", "rename"):
+        for cmd in ("check", "note-sec", "diff", "rename", "revision"):
             if cmd in COMMANDS:
                 path = COMMANDS[cmd]
                 text = path.read_text(encoding="utf-8")
