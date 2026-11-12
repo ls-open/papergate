@@ -82,14 +82,14 @@ class TestParsing:
 
     def test_missing_value_is_rejected(self):
         with pytest.raises(ec._UsageError):
-            ec._parse(["-r"])
+            ec._parse(["-f"])
 
     def test_second_positional_is_rejected(self):
         with pytest.raises(ec._UsageError):
             ec._parse(["a.md", "b.md"])
 
     def test_all_flags_round_trip(self):
-        opts = ec._parse(["a.md", "-r", "f.txt", "-t", "t.docx", "-o", "o.docx",
+        opts = ec._parse(["a.md", "-f", "f.txt", "--base-template", "t.docx", "-o", "o.docx",
                           "--pdf", "--no-check", "--no-postflight", "--no-audit"])
         assert (opts.input, opts.requirements, opts.base_template, opts.output) == \
                ("a.md", "f.txt", "t.docx", "o.docx")
@@ -105,12 +105,11 @@ class TestParsing:
                ("版权使用授权书", "3", "2")
         assert opts.verbose
 
-    def test_old_spellings_are_still_accepted(self):
-        """`-r`/`--requirements`、`-t`/`--template` 是论文侧的历史写法，不能一改就废。"""
-        a = ec._parse(["a.md", "-r", "f.txt", "-t", "t.docx"])
-        b = ec._parse(["a.md", "--requirements", "f.txt", "--template", "t.docx"])
-        assert (a.requirements, a.base_template) == (b.requirements, b.base_template) == \
-               ("f.txt", "t.docx")
+    def test_retired_spellings_are_rejected(self):
+        """`-r`/`-t` 已退役：认下来只会让旧笔记看起来还能用，实际迟早对不上。"""
+        for argv in (["a.md", "-r", "f.txt"], ["a.md", "-t", "t.docx"]):
+            with pytest.raises(ec._UsageError):
+                ec._parse(argv)
 
 
 # ── 格式要求文件发现 ──────────────────────────────────────────────────
@@ -215,17 +214,16 @@ class TestEngineInvocation:
         tpl = tmp_path / "base.docx"
         tpl.write_bytes(b"PK")
         md = _manuscript(tmp_path)
-        ec.main([str(md), "-t", str(tpl)])
+        ec.main([str(md), "--base-template", str(tpl)])
         assert "--base-template" in engine.argv, engine.argv
-        assert "-t" not in engine.argv, "旧拼法不能原样转发"
         assert engine.argv[engine.argv.index("--base-template") + 1] == str(tpl)
 
-    def test_requirements_forwarded_with_current_spelling(self, tmp_path, monkeypatch):
-        """`-r` 仍收，但转发用引擎现行的 `-f`（`-r` 会打弃用提示）。"""
+    def test_requirements_forwarded_as_format(self, tmp_path, monkeypatch):
+        """论文侧的 `-f` 原样转发（引擎就是 `-f`）。"""
         engine = _install(monkeypatch, _FakeEngine({"ok": True}))
         (tmp_path / "req.txt").write_text("x", encoding="utf-8")
-        ec.main([str(_manuscript(tmp_path)), "-r", str(tmp_path / "req.txt")])
-        assert "-f" in engine.argv and "-r" not in engine.argv, engine.argv
+        ec.main([str(_manuscript(tmp_path)), "-f", str(tmp_path / "req.txt")])
+        assert engine.argv[engine.argv.index("-f") + 1].endswith("req.txt")
 
     def test_preset_alone_is_enough(self, tmp_path, monkeypatch):
         """只给 --preset 也要能导：预设本身就是一份格式声明，不该再逼人找 .txt。"""

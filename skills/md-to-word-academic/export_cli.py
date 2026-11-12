@@ -1,27 +1,20 @@
 #!/usr/bin/env python3
-"""papergate.py export 的适配层：把论文侧的导出约定接到 `md-to-word` 引擎上。
+"""papergate.py export 的适配层：论文侧只比引擎多两件事。
 
-引擎不在这里。编译、预检、产物对账、PDF 渲染全在安装好的 `md-to-word`
-（pip 包 `md-to-word-docx`）里，本文件只做三件论文侧特有的事：
+引擎不在这里。编译、预检、产物对账、PDF 渲染、底模灌入全在安装好的 `md-to-word`
+（pip 包 `md-to-word-docx`）里。本文件只做两件引擎不管的事：
 
-1. **格式要求文件怎么找**：引擎只认死名字 `format.txt`；论文侧的历史约定是
-   「稿件同目录（或 `-t` 底模同目录）下唯一的 `.txt`」，文件名带目标期刊前缀，
-   如 `cur-psychol_requirements.txt`。这里按旧规则找到它，再显式交给引擎——
-   找不到就报错停下，**不退回引擎的内置预设**：期刊导出用的是投稿方给的格式，
-   悄悄套一份通用预设等于交了一份格式没核对过的稿子。
-2. **退出码与跳过信号**：引擎用 0/1/2/3；论文侧（脚本、CI、Agent）读的是
-   0/1/3 加一行 `PAPERGATE_SKIP`。2（命令行用错）在这里归到 1。
-3. **引擎版本下限**：低于 `ENGINE_MIN_VERSION` 直接拒绝导出。版本线不是形式——
-   3.0 之前修掉的是表格 `***` 被误判成未闭合加粗、APA 同姓消歧缺失、GB/T 的
-   `[J]` 文献类型标识整组丢失、文献表按姓氏而非年份键排序；3.5.0 起才有
-   `--base-template` 底模灌入的正式形态与本工作区两稿依赖的排版修正。
+1. **格式要求文件怎么找**：引擎只认死名字 `format.txt`；论文侧的约定是
+   「稿件同目录（给了 `--base-template` 时是底模同目录）下唯一的 `.txt`」，
+   文件名带目标前缀，如 `cur-psychol_requirements.txt`。找到就显式交给引擎，
+   找不到就停下——期刊稿用的是投稿方给的格式，静默套一份预设版面上看不出问题。
+2. **退出码**：引擎 0/1/2/3 → 论文侧 0/1/3，3 另加一行 `PAPERGATE_SKIP`。
 
-**旗子拼法以引擎为准**：论文侧的 `-r`/`-t` 是历史写法，引擎 3.0 已经移除自己的
-`-t`、`-r` 也打了弃用提示。适配层两种写法都收（老笔记照旧能用），但转发给引擎
-的一律是现行拼法（`-f` / `--base-template`）。
+**其余一律原样透传**：旗子的含义、格式要求文件的词表、报错怎么修，都以引擎为准
+（`md-to-word --guide` / `--contract`）。引擎更新时这里通常不用动。
 
 输出走引擎的 `--json`：stdout 是给程序读的契约（键固定），进度照常流到 stderr。
-解析的是键与 `MD2WORD_SKIP` 这类机器令牌，不解析人读的措辞——措辞随版本会变。
+只解析键与 `MD2WORD_SKIP` 这类机器令牌，不解析人读的措辞。
 """
 
 from __future__ import annotations
@@ -34,43 +27,35 @@ from pathlib import Path
 from typing import Optional
 
 ENGINE = "md-to-word"
-# 下限跟着**论文侧真正用到的能力**走，不跟着"能跑"走：
-#   3.3.0 起 --base-template（正文灌进学校底模，学位论文必需；3.0 已移除旧的 -t）
-#   3.5.0 起底模灌入转正、标点压缩跟着校对语言走、对开页装订边左右交替
-# 本工作区的两稿产物是 3.5.0 出的，低于它连命令行都对不上（-t 直接被 engine 拒绝）。
 ENGINE_MIN_VERSION = (3, 5, 0)
 
 EXIT_OK = 0
 EXIT_ERROR = 1
 EXIT_PDF_SKIPPED = 3
 
-USAGE_BRIEF = """用法: papergate.py export <稿件.md> [-f 格式要求.txt] [-t 底模.docx] [-o 输出.docx]
-                          [--preset 预设] [--lang auto|zh|en] [--pdf]
+USAGE_BRIEF = """用法: papergate.py export <稿件.md> [-f 格式要求.txt] [-o 输出.docx]
+                          [--base-template 底模.docx] [--preset 预设] [--pdf]
   全部选项见: papergate.py export --help"""
 
 USAGE = USAGE_BRIEF + """
 
-  -f, --format         格式要求文件（-r/--requirements 是旧拼法，仍认）；
-                       默认：稿件同目录下唯一的 .txt，传了 -t 时默认底模同目录下唯一的 .txt
-  -t, --base-template  学校/期刊底模（.docx）：正文灌进它，保留它自己的封面、声明等版式；
-                       若不传，样式按格式要求文件实时生成
+  -f, --format         格式要求文件；默认取与稿件同目录（给了底模则与底模同目录）下唯一的 .txt
+  --base-template      学校/期刊底模（.docx）：正文灌进它，保留它自己的封面、声明等版式
   -o, --output         输出路径（默认：与稿件同名的 .docx）
-  --preset             md-to-word 内置格式预设（zh-academic / en-nature），
-                       与 -f 互斥；期刊稿不要用它——投稿方的格式要求才是准
+  --preset             引擎内置预设（zh-academic / en-nature，与 -f 互斥）；
+                       只用于"要一份可读副本"，投稿与送审一律用格式要求文件
   --lang               引擎消息语言 auto|zh|en（默认 auto，按稿件语种）
-  --keep-pages         底模保留前几页（换算成节数，慢；能说内容时改用下一个）
   --keep-until         底模里出现这段文字的那一节为止，前面的原样保留（推荐）
-  --cover-sections     底模前几节是前置件（封面、声明…），原样保留
+  --keep-pages         底模保留前几页（引擎要试切几次换算成节数，慢）
+  --cover-sections     底模前几节是前置件，原样保留
   -v, --verbose        引擎逐样式明细（排查"格式没生效"时用）
-  --pdf                导出后用本机 Word 再渲染一份 PDF（仅 macOS；域会被展开）
+  --pdf                导出后用本机 Word 再渲染一份 PDF（仅 macOS）
   --no-check           跳过导出前语法与排版契约预检（不推荐）
   --no-postflight      跳过产物完整性闸门（不推荐）
   --no-audit           跳过产物与格式要求逐条对账（不推荐）
 
-退出码: 0=全部完成 / 1=闸门未通过或引擎不可用 / 3=docx 已生成但 --pdf 未渲染
-
-已移除的旧参数：--strip-comments（引擎不支持注释语法）、
---eq-number-style（编号外观现按稿件语种与 crossref.chapters 自动决定）。"""
+其余旗子的含义以引擎为准：md-to-word --guide / --contract
+退出码: 0=全部完成 / 1=闸门未通过或引擎不可用 / 3=docx 已生成但 --pdf 未渲染"""
 
 
 class _UsageError(Exception):
@@ -102,14 +87,7 @@ class _Options:
 
 _VALUE_FLAGS = {
     "-o": "output", "--output": "output",
-    # 引擎 3.x 的正式拼法是 -f/--format；-r/--requirements 是它的旧名（仍认，
-    # 但引擎会打一行弃用提示）。论文侧的文档一直写 -r，两个都收，转发只用 -f。
     "-f": "requirements", "--format": "requirements",
-    "-r": "requirements", "--requirements": "requirements",
-    # 引擎 3.0 移除了自己的 -t/--template（借现成 docx 当样式底座），
-    # 3.3 起改叫 --base-template（正文灌进底模）。论文侧的 -t 语义跟着改，
-    # 两种写法都收，转发只用引擎现行拼法。
-    "-t": "base_template", "--template": "base_template",
     "--base-template": "base_template",
     "--preset": "preset",
     "--lang": "lang",
@@ -180,7 +158,7 @@ def _resolve_requirements(opts: _Options, manuscript: Path) -> Optional[Path]:
     if opts.requirements:
         path = Path(opts.requirements)
         if not path.is_file():
-            raise _UsageError(f"-f/-r 指定的格式要求文件不存在: {opts.requirements}")
+            raise _UsageError(f"-f 指定的格式要求文件不存在: {opts.requirements}")
         return path
     if opts.base_template:
         return _unique_txt(Path(opts.base_template).resolve().parent)
@@ -222,9 +200,8 @@ def _engine_argv(opts: _Options, manuscript: Path, output: Path,
                  requirements: Optional[Path]) -> list[str]:
     """拼引擎命令行：论文侧的旗子全部翻成引擎**现行**的拼法。
 
-    `-r`/`-t` 是引擎的旧拼法（`-t` 已在 3.0 移除，`-r` 会打弃用提示），
-    这里一律换成 `-f`/`--base-template`——论文侧的文档可以继续写旧名字，
-    但真正交给引擎的必须是它现在认的那个。
+    旗子与引擎一一对应，不做改名：论文侧写出什么，引擎就收到什么。
+    多出来的只有 `-o` 的默认值（与稿件同名的 .docx）。
     """
     argv = [ENGINE, str(manuscript), "-o", str(output), "--json"]
     if requirements is not None:
@@ -329,8 +306,8 @@ def main(argv: list[str]) -> int:
         # 三条都没有就停下——不替人挑一份预设，那种稿子版面上看不出问题。
         if requirements is None and not opts.base_template and not opts.preset:
             raise _UsageError(
-                "未找到格式要求文件，也未传 -t 底模或 --preset 预设。日常导出只需把唯一的"
-                "格式要求 .txt 放在稿件同目录（或传 -f 指定）。")
+                "未找到格式要求文件，也未传 --base-template 底模或 --preset 预设。"
+                "日常导出只需把唯一的格式要求 .txt 放在稿件同目录（或传 -f 指定）。")
 
         _require_engine()
 
