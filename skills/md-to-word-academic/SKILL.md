@@ -6,8 +6,13 @@ description: "Exports academic Markdown to Word (.docx) for journals and degree 
 # 学术论文 → Word（论文侧适配层）
 
 **引擎不在这里**：编译、预检、产物对账、PDF 渲染都在 `md-to-word`（pip 包
-`md-to-word-docx`）。本目录只有一个 `export_cli.py`，做论文侧特有的三件事：找格式要求文件、
-接退出码与 `PAPERGATE_SKIP`、卡引擎版本下限。
+`md-to-word-docx`）。本目录只有一个 `export_cli.py`，做论文侧特有的四件事：找格式要求文件、
+接退出码与 `PAPERGATE_SKIP`、卡引擎版本下限（**≥ 3.5.0**）、把论文侧的历史旗子
+（`-r`/`-t`）翻成引擎现行的拼法（`-f`/`--base-template`）。
+
+> 引擎本体在 `github.com/ls-open/md-to-word` 维护，同一套能力可由 pip 包、MCP、技能三种方式接入；
+> **本文件只覆盖“论文侧多出来的约定”，引擎怎么写、词表是什么、报错怎么修，一律看引擎自己的
+> `--guide` / 手册**——两边说法不一致时，以引擎为准。
 
 **稿件的写法、格式要求文件的词表、能力边界、报错怎么修——全部以引擎自己的文档为准**，
 不要凭本文件推断：
@@ -39,16 +44,38 @@ md-to-word --guide                                               # 引擎的技�
 
 ### 1.2 格式要求文件怎么命名
 
-引擎只认死名字 `format.txt`；论文侧的约定——**稿件同目录下唯一的 `.txt`**，
-文件名带目标前缀（如 `cur-psychol_requirements.txt`）。适配层找到它再 `-r` 交给引擎。
+引擎只认死名字 `format.txt`（现行旗子 `-f/--format`）；论文侧的约定——**稿件同目录下唯一的 `.txt`**，
+文件名带目标前缀（如 `cur-psychol_requirements.txt`）。适配层找到它再显式交给引擎。
 
 因此：**一个导出目录只放一份 `.txt`**。放两份会直接报错停下。
-`-r` 可显式指定，`-t` 给模板时以模板所在目录为准。
+`-f` 可显式指定（旧写法 `-r`/`--requirements` 照旧认）；给了 `-t` 底模时，以底模所在目录为准。
+
+### 1.3 学位论文：底模灌入（3.5.0 起）
+
+学校给了封面、声明、目录模板时，不要试图用格式要求文件“重画”这些前置件——把正文**灌进底模**：
+
+```bash
+cd <项目> && python3 ../papergate/papergate.py export \
+  write/export/thesis/submission_manuscript.md \
+  -t write/export/thesis/学校模板.docx \
+  --keep-until 版权使用授权书 \
+  -o 正文.docx
+```
+
+| 旗子 | 什么时候用 |
+|:--|:--|
+| `-t/--base-template` | 有学校/期刊底模时（引擎 3.0 前叫别的名字，现行就是它） |
+| `--keep-until <文字>` | **推荐**：底模里出现这段文字的那一节为止，前面的封面/声明原样保留 |
+| `--keep-pages <n>` | 只知道“前几页”时用；引擎要试切几次换算成节数，慢，一次就够 |
+| `--cover-sections <n>` | 前置件直接按节数说清时用 |
+
+底模灌入的规矩、验不过时的报错、目录为什么不保留，都在引擎手册的学位论文一节
+（`md-to-word --contract` 打印路径）。**不要手改成品 docx**：下一次导出会覆盖。
 
 **“能写的一段不少”**：没要求的项也显式写 0（`段前0磅`、`首行缩进0字符`）。不写就套默认样式，
 而默认样式看不出对错。必填项缺了引擎会报错并给出应写内容。
 
-### 1.3 格式要求文件的三个来源
+### 1.4 格式要求文件的三个来源
 
 学位论文没有成文的 author guidelines，要求是**三处交叉核对**拼出来的：
 学校明文（模板注释 PDF）、学校下发的实物 `.docx`、同学院已通过论文的实测基线。
@@ -97,6 +124,10 @@ md-to-word-template 参考.docx -o 草稿.txt      # 末尾会列「需人工确
 ```bash
 cd <项目> && python3 ../papergate/papergate.py export write/export/<目标>/submission_manuscript.md -o 正文.docx
 ```
+
+学位论文带底模导出见 §1.3。目标方**没有**给格式要求、只是要一份可读副本时，才用引擎内置预设
+（`--preset zh-academic` / `--preset en-nature`，与格式要求文件互斥）；投稿与送审的稿子一律
+用对方的格式要求，**不要拿预设顶替**——套了通用预设在版面上看不出任何异常。
 
 闸门全绿才算完。报错的行号照着改，改完再导——**不要加 `--no-check`**，它连阻断级闸门
 （丢内容、语法原样印出、格式没映射）一起关掉。

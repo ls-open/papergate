@@ -91,9 +91,26 @@ class TestParsing:
     def test_all_flags_round_trip(self):
         opts = ec._parse(["a.md", "-r", "f.txt", "-t", "t.docx", "-o", "o.docx",
                           "--pdf", "--no-check", "--no-postflight", "--no-audit"])
-        assert (opts.input, opts.requirements, opts.template, opts.output) == \
+        assert (opts.input, opts.requirements, opts.base_template, opts.output) == \
                ("a.md", "f.txt", "t.docx", "o.docx")
         assert opts.pdf and not (opts.check or opts.postflight or opts.audit)
+
+    def test_new_engine_flags_round_trip(self):
+        """3.x 的能力要能一路传到底：预设、语言、底模切点、逐样式明细。"""
+        opts = ec._parse(["a.md", "--base-template", "b.docx", "--preset", "zh-academic",
+                          "--lang", "zh", "--keep-until", "版权使用授权书",
+                          "--keep-pages", "3", "--cover-sections", "2", "-v"])
+        assert (opts.base_template, opts.preset, opts.lang) == ("b.docx", "zh-academic", "zh")
+        assert (opts.keep_until, opts.keep_pages, opts.cover_sections) == \
+               ("版权使用授权书", "3", "2")
+        assert opts.verbose
+
+    def test_old_spellings_are_still_accepted(self):
+        """`-r`/`--requirements`、`-t`/`--template` 是论文侧的历史写法，不能一改就废。"""
+        a = ec._parse(["a.md", "-r", "f.txt", "-t", "t.docx"])
+        b = ec._parse(["a.md", "--requirements", "f.txt", "--template", "t.docx"])
+        assert (a.requirements, a.base_template) == (b.requirements, b.base_template) == \
+               ("f.txt", "t.docx")
 
 
 # ── 格式要求文件发现 ──────────────────────────────────────────────────
@@ -119,7 +136,7 @@ class TestRequirementsDiscovery:
         _manuscript(tmp_path)
         (tmp_path / "other.txt").write_text("x", encoding="utf-8")
         opts = ec._Options()
-        opts.template = str(tpl_dir / "t.docx")
+        opts.base_template = str(tpl_dir / "t.docx")
         assert ec._resolve_requirements(opts, _manuscript(tmp_path)).name == "tpl_requirements.txt"
 
     def test_missing_explicit_path_is_an_error(self, tmp_path):
@@ -187,8 +204,44 @@ class TestEngineInvocation:
         assert ec.main([str(md), "-o", str(out)]) == ec.EXIT_OK
         argv = engine.argv
         assert argv[0] == ec.ENGINE and "--json" in argv
-        assert argv[argv.index("-r") + 1].endswith("req.txt")
+        assert argv[argv.index("-f") + 1].endswith("req.txt")
         assert argv[argv.index("-o") + 1] == str(out)
+
+    def test_template_is_forwarded_as_base_template(self, tmp_path, monkeypatch):
+        """回归：引擎 3.0 移除了自己的 `-t`，适配层若照抄 `-t` 转发，
+        引擎会以「unrecognized arguments」直接拒绝——整条导出链静默不可用。"""
+        engine = _install(monkeypatch, _FakeEngine({"ok": True}))
+        (tmp_path / "req.txt").write_text("x", encoding="utf-8")
+        tpl = tmp_path / "base.docx"
+        tpl.write_bytes(b"PK")
+        md = _manuscript(tmp_path)
+        ec.main([str(md), "-t", str(tpl)])
+        assert "--base-template" in engine.argv, engine.argv
+        assert "-t" not in engine.argv, "旧拼法不能原样转发"
+        assert engine.argv[engine.argv.index("--base-template") + 1] == str(tpl)
+
+    def test_requirements_forwarded_with_current_spelling(self, tmp_path, monkeypatch):
+        """`-r` 仍收，但转发用引擎现行的 `-f`（`-r` 会打弃用提示）。"""
+        engine = _install(monkeypatch, _FakeEngine({"ok": True}))
+        (tmp_path / "req.txt").write_text("x", encoding="utf-8")
+        ec.main([str(_manuscript(tmp_path)), "-r", str(tmp_path / "req.txt")])
+        assert "-f" in engine.argv and "-r" not in engine.argv, engine.argv
+
+    def test_preset_alone_is_enough(self, tmp_path, monkeypatch):
+        """只给 --preset 也要能导：预设本身就是一份格式声明，不该再逼人找 .txt。"""
+        engine = _install(monkeypatch, _FakeEngine({"ok": True}))
+        md = _manuscript(tmp_path)
+        assert ec.main([str(md), "--preset", "zh-academic"]) == ec.EXIT_OK
+        assert engine.argv[engine.argv.index("--preset") + 1] == "zh-academic"
+        assert "-f" not in engine.argv, "没有格式文件就不该给引擎传 -f"
+
+    def test_preset_and_keep_until_reach_the_engine(self, tmp_path, monkeypatch):
+        engine = _install(monkeypatch, _FakeEngine({"ok": True}))
+        (tmp_path / "req.txt").write_text("x", encoding="utf-8")
+        md = _manuscript(tmp_path)
+        ec.main([str(md), "--keep-until", "版权使用授权书", "--lang", "zh"])
+        assert engine.argv[engine.argv.index("--keep-until") + 1] == "版权使用授权书"
+        assert engine.argv[engine.argv.index("--lang") + 1] == "zh"
 
     def test_default_output_is_sibling_docx(self, tmp_path, monkeypatch):
         engine = _install(monkeypatch, _FakeEngine({"ok": True}))
