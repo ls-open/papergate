@@ -213,8 +213,8 @@ if __name__ == "__main__":
 class TestCslOnSubmissionCopy(unittest.TestCase):
     """投稿副本任何时候都该挂 csl——判定按**稿件类型**，不按阶段。
 
-    回归：修订期被 STAGE_KEY_MAP 映射成 writing，若按阶段判，检查会对着
-    submission_manuscript.md 喊「建议移除该行」。AI 照做即毁掉导出。
+    回归：修订期若按阶段判（无论它当时被映射成 writing 还是现在的 revision），
+    检查会对着 submission_manuscript.md 喊「建议移除该行」。AI 照做即毁掉导出。
     """
 
     def _ctx_with(self, root: Path, stage: str) -> ProjectContext:
@@ -231,7 +231,7 @@ class TestCslOnSubmissionCopy(unittest.TestCase):
 
     def test_revision_stage_does_not_tell_submission_copy_to_drop_csl(self):
         with tempfile.TemporaryDirectory() as d:
-            ctx = self._ctx_with(Path(d), "writing")  # 修订期映射后的取值
+            ctx = self._ctx_with(Path(d), "revision")  # 修订期是独立阶段键
             self._write_submission_copy(ctx, "csl: style.csl")
             cr = check_submission.check_csl_path(ctx)
             self.assertFalse(

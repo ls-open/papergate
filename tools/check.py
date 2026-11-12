@@ -72,6 +72,7 @@ from check_shared import (
     ProjectContext,  # noqa: F401  # 聚合层 re-export（test_unit_checks 依赖 check.ProjectContext）
     build_context,
     build_framework_context,
+    expand_stages,
 )
 from check_submission import (
     check_cross_copy_consistency,
@@ -208,9 +209,10 @@ CHECK_REGISTRY = {
     "header_wrap": (check_header_wrap, "submission"),
     # 判投稿副本与源稿的交叉一致性：两份各自自洽、合起来仍可能互相矛盾
     "cross_copy_consistency": (check_cross_copy_consistency, "submission"),
-    # 修订期（阶段判定里 revision 映射为 writing，故必须挂 writing 才跑得到；
-    # 挂 submission 是因为返修后要重新导出投稿包，那时同样该查这一轮是否齐）
-    "revision_dirs": (check_revision_dirs, ("writing", "submission")),
+    # 修订期自己的检查项。它不需要再借 writing 的位：修订期是独立阶段键，
+    # 写作期/引用期的检查域由 check_shared.STAGE_INHERITS 显式继承过来。
+    # 挂 submission 是因为返修后要重新导出投稿包，那时同样该查这一轮是否齐。
+    "revision_dirs": (check_revision_dirs, ("revision", "submission")),
 }
 
 # 框架自检模式（--framework / 自动识别）运行的检查集合：
@@ -290,11 +292,10 @@ def get_checks_for_stage(stage, filter_pattern: str | None = None, registry=None
               技能检查项与核心检查项在此处无差别——它们只是注册表里的普通条目。
     """
     registry = CHECK_REGISTRY if registry is None else registry
-    # 归一化为集合
-    if isinstance(stage, str):
-        stages = {stage}
-    else:
-        stages = set(stage)
+    # 归一化为集合，并展开检查域继承（修订期 → 写作期 + 引用期）。
+    # 位置（revision）与检查域（writing/citation）是两件事，展开只发生在选择这一层，
+    # ctx.stage 仍保留 revision，供阶段敏感的判断（分阶段严重性、提示语）使用。
+    stages = expand_stages(stage if isinstance(stage, (str, list, tuple, set)) else {stage})
 
     framework_requested = "framework" in stages
     if framework_requested:
@@ -465,10 +466,13 @@ def main():
             # 阶段错位提醒（仅提示不阻断）：显式请求 review/submission 检查但项目
             # 实际不在该阶段时提醒——写作期有问题属正常，但 AI/用户不应误以为
             # 通过即代表该阶段工作已完成（如审查准入门禁在写作期跑也会全绿）
-            _detected = STAGE_KEY_MAP.get(detect_stage(project_root), "writing")
+            # 提示语说人话：显示状态机的阶段名（写作期/修订期/…），不是内部键。
+            # 两者过去是同一个变量，于是修订期会印成「writing」。
+            _detected_cn = detect_stage(project_root)
+            _detected = STAGE_KEY_MAP.get(_detected_cn, "writing")
             for _s in current_stage:
                 if _s in ("review", "submission") and _detected != _s:
-                    print(f"提示：项目当前阶段为「{_detected}」，与请求的 --stage {_s} 不一致；"
+                    print(f"提示：项目当前阶段为「{_detected_cn}」，与请求的 --stage {_s} 不一致；"
                           f"检查通过不代表「{_s}」期工作已完成，进入该阶段前请确认前置工作已就绪",
                           file=sys.stderr)
         elif args.check:
@@ -564,19 +568,25 @@ def main():
                     gate_cr.add(False, error=str(e), severity="critical")
                 for w in gate_result.warnings:
                     gate_cr.add(True, warning=str(w))
+                # 逐项修复指令原样带出来：检查自己知道该改哪个文件、怎么改，
+                # 门禁只负责阻断，不该把这份信息换成一句通用话术。
+                gate_cr.action_items.extend(gate_result.action_items)
 
         if gate_cr.errors:
             print("\n" + "=" * 60, file=sys.stderr)
             print("🔴 审查准入未通过：写作期/引用期存在致命问题", file=sys.stderr)
             print("=" * 60, file=sys.stderr)
-            for e in gate_cr.errors:
-                results["errors"].append(str(e))
+            results["errors"].extend(str(e) for e in gate_cr.errors)
+            results["action_items"].extend(gate_cr.action_items)
+            # 有些 error 没有配 action（纯事实陈述）：给一条兜底，保证每个阻塞项
+            # 都至少有一个可执行入口，但不覆盖已经带指令的那些。
+            if len(gate_cr.action_items) < len(gate_cr.errors):
                 results["action_items"].append({
                     "type": "confirm",
                     "priority": "required",
-                    "error": str(e),
                     "severity": "critical",
-                    "instruction": "审查期门禁阻断，请修复后重试",
+                    "instruction": "审查期门禁阻断：先跑 `check.py --stage writing --stage citation`"
+                                   " 看完整清单，修复后再进审查期",
                 })
             print(f"\n发现 {len(gate_cr.errors)} 个阻塞项，详情见 JSON。", file=sys.stderr)
             print("修复指引：先运行 `check.py --fix`（不带 --stage review）自动修复写作期/引用期"

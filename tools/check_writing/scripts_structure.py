@@ -441,7 +441,7 @@ def check_scripts_structure(ctx, ) -> CheckResult:
                 cr.add(True, {"file": name, "category": "config"})
             else:
                 cr.add(False, {"file": name, "ok": False},
-                       error=f"脚本/模板命名不规范: `{name}`（管线脚本用 collect_/clean_/feature_/model_/analyze_/robust_/figure_ 前缀，共享模块用 lib_，工具脚本用 tool_；配置脚本固定名 config.py、包文件 __init__.py）",
+                       error=f"脚本/模板命名不规范: `{name}`（管线脚本用 collect_/clean_/feature_/model_/analyze_/robust_/figure_ 前缀，共享模块用 lib_，工具脚本用 tool_；固定名只有 config.py / config.R / pipe_meta.py / __init__.py）",
                        severity="major",
                        action={"type": "confirm", "target": f"scripts/{name}",
                                "instruction": f"重命名 `{name}` 为 `<前缀>_<描述>{ext}`。需用户确认脚本职责后重命名"})

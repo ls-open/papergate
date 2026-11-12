@@ -89,8 +89,12 @@ main                                      ← 唯一分支：期刊无关的规�
 review/revisions/R<轮次>/
 ├── revision.json          ← 轮次 / 目标期刊 / 投稿版 tag 与 commit（增量复审的起点）
 ├── response_letter.md     ← 逐条回复，每条意见一个 `### ` 小节
-└── <期刊来信>              ← 决定信 PDF、邮件导出（eml/msg）或 docx/txt/md 摘录
+└── journal_letter.<扩展名> ← 期刊来信原件：决定信 PDF、邮件导出（eml/msg）或 docx/txt/md 摘录
 ```
+
+> **来信文件名固定**：主干名就是 `journal_letter`，扩展名随原件形态（`journal_letter.pdf` /
+> `.eml` / `.docx` …）。期刊系统导出的名字五花八门，检查不去猜关键词——放进来时**重命名一次**，
+> 之后每轮都这么放，判据就是一次精确比较。
 
 ### 1. 准备修订目录
 
@@ -98,7 +102,7 @@ review/revisions/R<轮次>/
 cd <项目> && python3 ../papergate/papergate.py revision new R1
 ```
 
-生成上面三个文件的骨架：`revision.json` 从最新的 `-submitted` 标签取目标期刊与投稿版 commit，`response_letter.md` 的待填位置一律写成 `<待填>` 这类尖括号槽位。**只补缺失文件，不覆盖已有内容**——重跑是安全的。随后把期刊来信原件放进该目录。
+生成上面两个文件的骨架：`revision.json` 从最新的 `-submitted` 标签取目标期刊与投稿版 commit，`response_letter.md` 的待填位置一律写成 `<待填>` 这类尖括号槽位。**只补缺失文件，不覆盖已有内容**——重跑是安全的。随后把期刊来信原件重命名为 `journal_letter.pdf`（或对应扩展名）放进该目录。
 
 > 槽位还在 = 没写完。`status` 与 `check` 都按这条认：空骨架不会被报成「回复信已写」，落盘当天就能看出这一轮还没动。
 

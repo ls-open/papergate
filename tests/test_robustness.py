@@ -186,8 +186,10 @@ class TestStageCombinationIdempotency(unittest.TestCase):
     def test_registered_stages_are_known(self):
         """CHECK_REGISTRY 中阶段字段不应有 typo"""
         # framework = 框架自省，只在 `check --framework` 下运行；普通项目的
-        # basic 面不该背这组（standards 完整性、SKILL.md 引用等）
-        valid_stages = {"basic", "writing", "citation", "review", "submission", "framework"}
+        # basic 面不该背这组（standards 完整性、SKILL.md 引用等）。
+        # 其余合法阶段从 CHECK_STAGES 派生：那份清单是单一真相源，测试不再
+        # 手写一遍——否则新增阶段（如 revision）时，真代码对了、测试却红。
+        valid_stages = set(check_shared.CHECK_STAGES) | {"framework"}
         for name, (_fn, stage) in check.CHECK_REGISTRY.items():
             stages = stage if isinstance(stage, (tuple, list)) else (stage,)
             for s in stages:

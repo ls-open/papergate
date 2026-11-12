@@ -10,7 +10,27 @@ from lib_config import has_submission_evidence, load_config, run_git as _run_git
 
 # 检查可归属的阶段（单一真相源）：check.py 的 --stage 取值、技能 manifest 的
 # checks[].stage 合法值、--list 的分组顺序都从这里取，不再各写一遍。
-CHECK_STAGES = ("basic", "writing", "citation", "review", "submission")
+CHECK_STAGES = ("basic", "writing", "citation", "review", "submission", "revision")
+
+# 检查域继承：修订期用**哪些**检查，与它**是**哪个阶段，是两件事。
+#
+# 修订期不拥有新的检查域——要改的仍然是一篇论文，所以写作期与引用期的检查
+# 照跑；它只多出几项自己的（回复信、来信原件、轮次登记，声明为 "revision"）。
+# 过去把修订期直接映射成 writing，等于把「位置」写成了「检查域」，于是回头
+# 就再也分不清自己在修订期：提示语说写作期、审查准入判错、修订专属检查只能
+# 借 writing 的位才跑得到。改成显式继承后，位置是 revision，检查域由这张表
+# 派生——要加一档（如将来的「外审期」）只需在这里加一行。
+STAGE_INHERITS = {"revision": ("writing", "citation")}
+
+
+def expand_stages(stages) -> set:
+    """把阶段集合展开到它的检查域（含继承来的阶段，最多展开一层）。"""
+    if isinstance(stages, str):
+        stages = {stages}
+    expanded = set(stages)
+    for stage in list(expanded):
+        expanded.update(STAGE_INHERITS.get(stage, ()))
+    return expanded
 
 
 @dataclass

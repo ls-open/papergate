@@ -56,7 +56,9 @@ LETTER_SKELETON = """\
 
 ## 审稿意见原文
 
-期刊来信原件（PDF / 邮件导出）放本目录，回复信里引用的原文以原件为准。
+期刊来信原件放本目录，**主干名固定为 `journal_letter`**（`journal_letter.pdf` /
+`.eml` / `.docx`，随原件形态）——文件名不做猜测，改名一次即可。
+回复信里引用的原文以原件为准。
 
 分条摘录（便于逐条挂账）：
 
@@ -189,7 +191,7 @@ def revision_new(args: list[str]) -> int:
 
     print()
     print("下一步：")
-    print(f"  1. 把期刊来信原件（PDF/邮件导出）放进 {rel}/")
+    print(f"  1. 把期刊来信原件重命名为 `journal_letter.pdf`（或 .eml/.docx）后放进 {rel}/")
     print(f"  2. 填 {rel}/{REVISION_LETTER}：清空所有 `<…>` 占位，每条意见一个 ### 小节")
     print(f"  3. 按 submission.md §三 改稿，增量复审以 "
           f"`audit-diff --since {(base_commit or '<投稿版commit>')[:8]}` 定范围")

@@ -15,6 +15,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import check  # noqa: E402
+import check_shared  # noqa: E402
 import check_ledger  # noqa: E402
 
 pytestmark = pytest.mark.smoke
@@ -74,10 +75,11 @@ class TestCheckLedger(unittest.TestCase):
         self.assertIn("true_zero", summary["zero_signal_eligible"])
 
     def test_registry_stages_consistent_with_stage_map(self):
-        # 注册表阶段词汇：basic/writing/citation/review/submission + framework
+        # 注册表阶段词汇 = CHECK_STAGES（单一真相源）+ framework
         # （citation 无 detect_stage 直接映射，由 writing+citation 多阶段检查与门禁覆盖；
-        #   framework 由 `check --framework` 显式进入，不由 detect_stage 推断）
-        allowed = {"basic", "writing", "citation", "review", "submission", "framework"}
+        #   framework 由 `check --framework` 显式进入，不由 detect_stage 推断。
+        #   测试不手抄一份清单：新增阶段时该红的是代码，不是清单。）
+        allowed = set(check_shared.CHECK_STAGES) | {"framework"}
         registry_stages = set()
         for _name, (_func, st) in check.CHECK_REGISTRY.items():
             stages = list(st) if isinstance(st, (tuple, list)) else [st]

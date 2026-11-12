@@ -23,23 +23,33 @@ import json
 
 from check_shared import CheckResult, run_git
 from lib_config import (
+    JOURNAL_LETTER_EXTS,
     REVISION_DIR_RE,
+    REVISION_JOURNAL_LETTER,
     REVISION_LETTER,
     REVISION_MANIFEST,
     revision_letter_state,
     revision_round_dirs,
 )
 
-# 期刊来信原件的可接受形态：邮件导出（eml/msg）、期刊系统 PDF/docx、手工摘录（txt/md/html）
-JOURNAL_LETTER_EXTS = (".pdf", ".eml", ".msg", ".txt", ".md", ".docx", ".doc", ".html", ".htm")
 
+def _journal_letter_file(round_dir: Path) -> tuple[Path | None, list[str]]:
+    """本轮目录里的期刊来信原件：主干名固定为 `journal_letter`，扩展名随原件形态。
 
-def _journal_letter_files(round_dir: Path) -> list[Path]:
-    """本轮目录里的期刊来信原件（排除回复信、登记文件与隐藏文件）。"""
+    不猜文件名。来信可能是导师转发的 docx、邮箱导出的 eml、期刊系统的 pdf，
+    名字五花八门；猜关键词既猜不全，猜错了也无从追责。约定成一个固定主干名
+    后，判据就是一次精确比较——放进来时重命名一次，之后每轮都一致。
+
+    返回 (命中的文件, 其他文档名)：其他文档只用于把"命名不规范"说清楚
+    （这两件事不一样：没放来信，和放了但没按约定命名）。
+    """
     skip = {REVISION_LETTER, REVISION_MANIFEST}
-    return [p for p in sorted(round_dir.iterdir())
+    docs = [p for p in sorted(round_dir.iterdir())
             if p.is_file() and not p.name.startswith(".")
             and p.name not in skip and p.suffix.lower() in JOURNAL_LETTER_EXTS]
+    hit = next((p for p in docs if p.stem.lower() == REVISION_JOURNAL_LETTER), None)
+    others = [p.name for p in docs if p != hit]
+    return hit, others
 
 
 def _load_revision_manifest(round_dir: Path) -> dict | None:
@@ -127,19 +137,34 @@ def _check_round(ctx, cr: CheckResult, round_dir: Path) -> None:
                             "无法逐条核对审稿意见是否都有回应"),
                    severity="minor")
 
-    # ④ 期刊来信原件（判据只到「有没有像来信的文件」，不判内容是不是来信——
-    #    命中的文件名写进 detail，人工一眼能看出它拿哪份当来信）
-    letters = _journal_letter_files(round_dir)
-    if letters:
+    # ④ 期刊来信原件：主干名固定 `journal_letter`，扩展名随原件形态
+    letter_src, others = _journal_letter_file(round_dir)
+    wanted = f"{REVISION_JOURNAL_LETTER}.pdf"  # 最常见的形态，提示里就拿它举例
+    if letter_src is not None:
         cr.add(True, {"round_dir": rel_dir, "journal_letter": True,
-                      "files": [p.name for p in letters]})
+                      "file": letter_src.name})
+    elif others:
+        # 有文档但没按约定命名：这不是"没放来信"，是"放了但框架认不出来"，
+        # 说法要分开——否则用户会以为物证丢了，其实是改个名字的事。
+        names = "、".join(others[:5])
+        more = "" if len(others) <= 5 else f" 等 {len(others)} 份"
+        cr.add(True, {"round_dir": rel_dir, "journal_letter": False,
+                      "unnamed_docs": others},
+               warning=(f"{rel_dir}/ 未见 `{REVISION_JOURNAL_LETTER}.<扩展名>`；"
+                        f"目录里另有 {len(others)} 份文档（{names}{more}）。"
+                        "来信要按固定名存：重命名一次，之后每轮都这么放"),
+               severity="minor",
+               action={"type": "confirm", "target": f"{rel_dir}/{wanted}",
+                       "instruction": f"把期刊来信原件重命名为 `{REVISION_JOURNAL_LETTER}.pdf`"
+                                      "（或 .eml/.msg/.docx/.md）后放进本轮目录"})
     else:
         cr.add(True, {"round_dir": rel_dir, "journal_letter": False},
-               warning=(f"{rel_dir}/ 未见期刊来信原件（pdf/eml/msg/txt/md）。"
+               warning=(f"{rel_dir}/ 未见期刊来信原件（`{REVISION_JOURNAL_LETTER}.<扩展名>`）。"
                         "回复信里的意见原文失去了唯一物证，期刊系统关闭后无法复核"),
                severity="minor",
-               action={"type": "confirm", "target": f"{rel_dir}/",
-                       "instruction": "把决定信 PDF 或邮件原件放进本轮目录（文件名随文档规范）"})
+               action={"type": "confirm", "target": f"{rel_dir}/{wanted}",
+                       "instruction": f"把决定信 PDF 或邮件原件重命名为 "
+                                      f"`{REVISION_JOURNAL_LETTER}.pdf` 后放进本轮目录"})
 
     # ⑤ 轮次登记：目录名 ↔ revision.json 的轮次号、投稿版 commit
     manifest = _load_revision_manifest(round_dir)

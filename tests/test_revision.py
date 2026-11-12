@@ -211,7 +211,7 @@ class TestCheckRevisionDirs(unittest.TestCase):
 
     def _cr(self, root: Path):
         ctx = ctx_for(root)
-        ctx.stage = "writing"  # 修订期被 STAGE_KEY_MAP 映射成 writing
+        ctx.stage = "revision"  # 修订期是自己的阶段键；检查域靠 STAGE_INHERITS 继承
         return check.check_revision_dirs(ctx)
 
     def test_no_revisions_dir_is_silent(self):
@@ -252,7 +252,7 @@ class TestCheckRevisionDirs(unittest.TestCase):
             root = _project(Path(d))
             r = _round(root)
             (r / "response_letter.md").write_text(FILLED, encoding="utf-8")
-            (r / "decision_letter.pdf").write_bytes(b"%PDF-1.4\n")
+            (r / "journal_letter.pdf").write_bytes(b"%PDF-1.4\n")
             cr = self._cr(root)
             self.assertNotIn("来信", "\n".join(cr.warnings))
 
@@ -264,13 +264,32 @@ class TestCheckRevisionDirs(unittest.TestCase):
                                   capture_output=True, text=True).stdout.strip()
             r = _round(root)
             (r / "response_letter.md").write_text(FILLED, encoding="utf-8")
-            (r / "decision_letter.pdf").write_bytes(b"%PDF-1.4\n")
+            (r / "journal_letter.pdf").write_bytes(b"%PDF-1.4\n")
             (r / "revision.json").write_text(
                 json.dumps({"round": 1, "journal": "cur-psychol", "base_commit": head}),
                 encoding="utf-8")
             cr = self._cr(root)
             self.assertEqual(cr.errors, [], cr.errors)
             self.assertEqual(cr.warnings, [], cr.warnings)
+
+    def test_documents_without_letter_name_do_not_pass_as_letter(self):
+        """回归：目录里只有稿件/笔记/README 时，不能算"来信原件已就位"。
+
+        这条曾经对任何 md/docx 放行——稿件、审计报告、README 全被当成来信，
+        检查永远绿，物证就没人真去放。
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = _project(Path(d))
+            r = _round(root)
+            (r / "response_letter.md").write_text(FILLED, encoding="utf-8")
+            (r / "Manuscript.docx").write_bytes(b"PK\x03\x04")
+            (r / "README.md").write_text("# 工作台\n", encoding="utf-8")
+            cr = self._cr(root)
+            joined = "\n".join(cr.warnings)
+            self.assertIn("重命名一次", joined)
+            self.assertNotIn("未见期刊来信原件", joined,
+                            "有文档但没按约定命名，与一份都没有不是一回事")
+
 
     def test_round_mismatch_is_error(self):
         with tempfile.TemporaryDirectory() as d:
@@ -286,7 +305,7 @@ class TestCheckRevisionDirs(unittest.TestCase):
             root = _project(Path(d), git=True)
             r = _round(root)
             (r / "response_letter.md").write_text(FILLED, encoding="utf-8")
-            (r / "decision_letter.eml").write_bytes(b"Subject: decision\n")
+            (r / "journal_letter.eml").write_bytes(b"Subject: decision\n")
             (r / "revision.json").write_text(
                 json.dumps({"round": 1, "base_commit": "deadbeef"}), encoding="utf-8")
             cr = self._cr(root)
@@ -354,6 +373,32 @@ class TestRevisionNew(unittest.TestCase):
             root = _project(Path(d))
             self.assertEqual(self._run(root, "new", "第一轮"), 2)
             self.assertFalse((root / "review" / "revisions").exists())
+
+
+class TestRevisionStageWiring(unittest.TestCase):
+    """修订期是独立阶段键，检查域由 STAGE_INHERITS 显式继承。
+
+    回归：修订期曾被映射成 writing——位置被抹成检查域，于是提示语印出
+    「项目当前阶段为 writing」、修订专属检查只能"借 writing 的位"才跑得到。
+    """
+
+    def test_stage_key_map_keeps_revision_as_position(self):
+        from lib_config import STAGE_KEY_MAP
+        self.assertEqual(STAGE_KEY_MAP["修订期"], "revision",
+                         "位置就是 revision；检查域是另一件事，靠继承解决")
+
+    def test_revision_inherits_writing_and_citation(self):
+        from check_shared import expand_stages
+        self.assertEqual(expand_stages({"revision"}), {"revision", "writing", "citation"})
+        self.assertEqual(expand_stages("writing"), {"writing"}, "其他阶段的检查域不受影响")
+        self.assertEqual(expand_stages("all"), {"all"}, "all 不参与继承展开")
+
+    def test_revision_stage_runs_own_and_inherited_checks(self):
+        names = [n for n, _ in check.get_checks_for_stage(["revision"])]
+        self.assertIn("revision_dirs", names, "修订期自己的检查项要跑")
+        self.assertIn("word_count", names, "写作期的检查域继承过来")
+        self.assertIn("citation_bidirectional", names, "引用期的检查域继承过来")
+        self.assertNotIn("export_engine", names, "投稿期的检查域不该被捎带进来")
 
 
 if __name__ == "__main__":

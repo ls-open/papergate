@@ -132,7 +132,10 @@ STAGE_KEY_MAP = {
     "写作期": "writing",
     "审查期": "review",
     "投稿期": "submission",
-    "修订期": "writing",
+    # 修订期是一个**位置**，不是一个检查域：它照跑 writing + citation 的检查，
+    # 再加自己的几项（见 check_shared.STAGE_INHERITS）。过去这里写 "writing"，
+    # 把位置抹成了检查域，下游再也分不清"在修订期"与"在写作期"。
+    "修订期": "revision",
 }
 
 
@@ -186,6 +189,11 @@ def detect_stage(project_root: Path) -> str:
 #      `revision new` 生成的骨架已按此排好。
 REVISION_LETTER = "response_letter.md"
 REVISION_MANIFEST = "revision.json"
+# 期刊来信原件的固定主干名。定死名字而不是猜：期刊/邮箱导出的文件名五花八门，
+# 按关键词猜既猜不全也猜错了没法追责；改成「放进来时重命名成这一个词，只改一次」，
+# 判据就是一次精确比较。扩展名随原件形态（.pdf/.eml/.msg/.docx/.md/.txt）。
+REVISION_JOURNAL_LETTER = "journal_letter"
+JOURNAL_LETTER_EXTS = (".pdf", ".eml", ".msg", ".docx", ".doc", ".txt", ".md", ".html", ".htm")
 REVISION_DIR_RE = re.compile(r"^R(\d+)")
 _LETTER_PLACEHOLDER_RE = re.compile(r"<([^<>\n]{1,60})>")
 _LETTER_PLACEHOLDER_WORD_RE = re.compile(r"(?i)^\s*(tbd|todo|fixme|placeholder|xxx)\b")
@@ -398,7 +406,8 @@ def detect_status(project_root: Path) -> dict:
         letter_state = revision_letter_state(letter)
         if rev_dir is not None and letter_state["exists"]:
             evidence.append(rel(letter))
-        checks = ["--stage writing", "--stage citation"]
+        # 修订期是一个阶段键，它按 STAGE_INHERITS 自带 writing + citation 的检查域
+        checks = ["--stage revision"]
         if letter_state["written"]:
             return {
                 "stage": "修订期",
